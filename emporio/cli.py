@@ -1,10 +1,17 @@
 """Chat no terminal. --telefone simula o número de quem manda a mensagem no WhatsApp."""
 import argparse
+import hashlib
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from . import config, prompts
 from .agent import Agent
+
+
+def prompt_hash() -> str:
+    text = prompts.SYSTEM_PROMPT + prompts.WRITER_PROMPT
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
 def main() -> None:
@@ -14,6 +21,7 @@ def main() -> None:
     parser.add_argument("--roteiro", type=Path, help="arquivo com uma mensagem do cliente por linha")
     parser.add_argument("--saida", type=Path, help="salva a conversa em Markdown")
     parser.add_argument("--sessao", help="id de sessão (padrão: o telefone, ou anônima)")
+    parser.add_argument("--modo", choices=["livre", "restrito"], help="padrão: EMPORIO_MODE ou livre")
     args = parser.parse_args()
 
     transcript: list[str] = []
@@ -24,7 +32,7 @@ def main() -> None:
         if args.debug:
             print(f"  {line}", file=sys.stderr)
 
-    agent = Agent(phone=args.telefone, session_id=args.sessao, on_tool=on_tool)
+    agent = Agent(phone=args.telefone, session_id=args.sessao, on_tool=on_tool, mode=args.modo)
     who = agent.customer["name"] if agent.customer else "cliente não identificado"
     print(f"Empório da Música — atendimento virtual ({who}). Digite 'sair' para encerrar.\n")
 
@@ -48,12 +56,22 @@ def main() -> None:
             continue
         transcript.append(f"**Cliente:** {text}\n")
         answer = agent.reply(text)
-        transcript.append(f"\n**Lia:** {answer}\n")
+        stats = agent.last_stats
+        flags = [f"{stats['segundos']} s"]
+        if stats.get("validador"):
+            flags.append("validador barrou: " + ", ".join(stats["validador"]))
+        if stats.get("resposta_segura"):
+            flags.append("resposta segura")
+        transcript.append(f"\n**Lia:** {answer}\n\n<sub>{' · '.join(flags)}</sub>\n")
         print(f"Lia: {answer}\n")
+        if args.debug:
+            print(f"  [{' · '.join(flags)}]", file=sys.stderr)
 
     if args.saida:
         header = [f"# {args.saida.stem}", "",
                   f"- Cliente: {who}" + (f" (WhatsApp {args.telefone})" if args.telefone else ""),
+                  f"- Modelo: `{config.LLM_MODEL}` · modo `{agent.mode}` · temperatura {config.LLM_TEMPERATURE:g} · "
+                  f"prompt `{prompt_hash()}`",
                   f"- Gerado em {datetime.now():%d/%m/%Y %H:%M}; linhas com 🔧 são as ferramentas chamadas pelo agente.",
                   "", "---", ""]
         args.saida.write_text("\n".join(header + transcript) + "\n", encoding="utf-8")

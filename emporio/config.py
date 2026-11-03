@@ -12,6 +12,8 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "ollama")
 LLM_MODEL = os.getenv("LLM_MODEL", "huihui_ai/qwen2.5-abliterate:latest")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0"))
+# "livre" (function calling) ou "restrito" (formulário JSON validado); ver agent.py.
+AGENT_MODE = os.getenv("EMPORIO_MODE", "livre")
 
 # Os dados são um snapshot que termina em março/2026, então "hoje" é configurável
 # para que prazos (devolução, garantia, atraso de entrega) façam sentido.
