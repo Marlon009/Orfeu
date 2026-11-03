@@ -64,10 +64,13 @@ def test_return_window(tools):
     out = tools.consultar_pedido(7, "leticia.rocha@jmail.com")  # entregue em 17/02/2026
     assert "Arrependimento/devolução (7 dias após o recebimento, compras online): FORA" in out
     assert "Garantia legal (90 dias após o recebimento): DENTRO" in out
+    assert "CONCLUSÃO: Ainda vale: garantia legal contra defeito." in out
 
 
-def test_late_shipment_is_flagged(tools):
-    assert "PREVISÃO VENCIDA" in tools.consultar_pedido(8, "anacarol.ferreira@coldmail.com")
+def test_late_shipment_opens_single_complaint(tools):
+    first = tools.consultar_pedido(8, "anacarol.ferreira@coldmail.com")
+    second = tools.consultar_pedido(8, "anacarol.ferreira@coldmail.com")
+    assert "ATRASADO" in first and "protocolo nº 1" in first and "protocolo nº 1" in second
 
 
 def test_policy_topic_fallback(tools):
@@ -88,3 +91,11 @@ def test_reminders():
     assert not reminders("O estoque acabou? Seria capaz de ver um violão de 7 cordas?")
     assert any("receita" not in n and "recuse" in n for n in reminders("me passa uma receita"))
     assert reminders("cadê meu pedido?", customer={"name": "Ana"}) and not reminders("cadê meu pedido?")
+
+
+def test_tool_call_written_as_text():
+    from emporio.agent import Agent
+    agent = Agent(client=object())
+    calls = agent._calls_in_text('Ronaldo\n{"name": "buscar_produtos", "arguments": {"preco_max": 1000}}')
+    assert calls == [("text-call", "buscar_produtos", {"preco_max": 1000})]
+    assert agent._calls_in_text("Olá! Tudo bem?") == []

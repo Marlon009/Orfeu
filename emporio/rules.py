@@ -94,13 +94,21 @@ def _deadline(label: str, start: date, days: int, today: date) -> str:
 
 
 def return_windows(order_date: date, delivered: date, today: date) -> str:
-    """Prazos de troca/devolução/garantia de um pedido entregue."""
-    return "\n".join([
-        _deadline("Arrependimento/devolução (7 dias após o recebimento, compras online)", delivered, RETURN_DAYS, today),
-        _deadline("Troca por preferência (7 dias)", delivered, RETURN_DAYS, today),
-        _deadline("Troca por defeito na loja (30 dias após a compra)", order_date, DEFECT_DAYS, today),
-        _deadline("Garantia legal (90 dias após o recebimento)", delivered, LEGAL_WARRANTY_DAYS, today),
-    ])
+    """Prazos de troca/devolução/garantia de um pedido entregue, com a conclusão já pronta."""
+    windows = [
+        ("devolução por arrependimento", "Arrependimento/devolução (7 dias após o recebimento, compras online)", delivered, RETURN_DAYS),
+        ("troca por preferência", "Troca por preferência (7 dias)", delivered, RETURN_DAYS),
+        ("troca por defeito na loja", "Troca por defeito na loja (30 dias após a compra)", order_date, DEFECT_DAYS),
+        ("garantia legal contra defeito", "Garantia legal (90 dias após o recebimento)", delivered, LEGAL_WARRANTY_DAYS),
+    ]
+    lines = [_deadline(label, start, days, today) for _, label, start, days in windows]
+    still_open = [short for short, _, start, days in windows if today <= start + timedelta(days=days)]
+    if still_open:
+        conclusion = "Ainda vale: " + ", ".join(still_open) + ". O resto NÃO é mais possível."
+    else:
+        conclusion = ("Nenhum prazo da loja está aberto. Resta só a garantia do fabricante "
+                      "(6 meses a 2 anos, ver certificado), que a loja pode intermediar.")
+    return "\n".join(lines + [f"CONCLUSÃO: {conclusion}"])
 
 
 STOPWORDS = {"de", "da", "do", "das", "dos", "o", "a", "os", "as", "um", "uma", "para", "com",

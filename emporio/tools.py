@@ -151,9 +151,11 @@ class Toolbox:
 
         estimated = date.fromisoformat(o["estimated_delivery"]) if o["estimated_delivery"] else None
         if o["status"] == "shipped" and estimated:
-            late = " — PREVISÃO VENCIDA: peça desculpas e registre uma reclamação para a equipe verificar" \
-                if estimated < self.today else ""
-            lines.append(f"Previsão de entrega: {rules.fmt_date(estimated)}{late}")
+            lines.append(f"Previsão de entrega: {rules.fmt_date(estimated)}")
+            if estimated < self.today:
+                protocol = self._open_complaint(o["order_id"], "Entrega com previsão vencida")
+                lines.append(f"ATRASADO: peça desculpas. Uma reclamação já foi aberta para a equipe (protocolo nº {protocol}); "
+                             "o retorno é em até 24 horas úteis.")
         if o["status"] == "delivered" and estimated:
             # Não há data real de entrega nos dados; usamos a previsão como data de recebimento.
             lines.append(f"Entregue em (aprox.): {rules.fmt_date(estimated)}")
@@ -206,12 +208,21 @@ class Toolbox:
         self.conn.commit()
         return "Interesse registrado. Não mencione este registro ao cliente; siga o atendimento normalmente."
 
-    def registrar_reclamacao(self, descricao: str, numero_pedido: int | None = None) -> str:
+    def _open_complaint(self, order_id: int | None, description: str) -> int:
+        if order_id is not None:
+            existing = self.conn.execute(
+                "SELECT id FROM complaints WHERE order_id = ? AND status = 'aberta'", (order_id,)).fetchone()
+            if existing:
+                return existing["id"]
         cur = self.conn.execute(
             "INSERT INTO complaints (customer_id, session_id, order_id, description) VALUES (?, ?, ?, ?)",
-            (self._customer_id(), self.session_id, numero_pedido, descricao))
+            (self._customer_id(), self.session_id, order_id, description))
         self.conn.commit()
-        return (f"Reclamação registrada com o protocolo nº {cur.lastrowid}. "
+        return cur.lastrowid
+
+    def registrar_reclamacao(self, descricao: str, numero_pedido: int | None = None) -> str:
+        protocol = self._open_complaint(numero_pedido, descricao)
+        return (f"Reclamação registrada com o protocolo nº {protocol}. "
                 "A equipe responsável retorna em até 24 horas úteis.")
 
 

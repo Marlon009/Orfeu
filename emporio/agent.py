@@ -65,6 +65,19 @@ class Agent:
             self.on_tool(name, args, result)
         return result
 
+    def _calls_in_text(self, content: str) -> list[tuple[str, str, dict]]:
+        """O Qwen às vezes escreve a chamada como JSON no texto em vez de usar tool_calls."""
+        start, end = content.find("{"), content.rfind("}")
+        if start < 0 or end < start:
+            return []
+        try:
+            data = json.loads(content[start:end + 1])
+        except json.JSONDecodeError:
+            return []
+        if isinstance(data, dict) and data.get("name") in self.params:
+            return [("text-call", data["name"], data.get("arguments") or {})]
+        return []
+
     def reply(self, user_text: str) -> str:
         messages = [{"role": "system", "content": build_system_prompt(self.tools.today, self.customer)},
                     *self._history()]
@@ -78,14 +91,17 @@ class Agent:
                 model=config.LLM_MODEL, messages=messages, tools=self.specs,
                 temperature=config.LLM_TEMPERATURE)
             msg = response.choices[0].message
-            if not msg.tool_calls:
+            calls = [(c.id, c.function.name, c.function.arguments) for c in msg.tool_calls or []]
+            if not calls:
+                calls = self._calls_in_text(msg.content or "")
+            if not calls:
                 answer = (msg.content or "").strip()
                 break
-            messages.append({"role": "assistant", "content": msg.content or "",
-                             "tool_calls": [c.model_dump() for c in msg.tool_calls]})
-            for call in msg.tool_calls:
-                messages.append({"role": "tool", "tool_call_id": call.id,
-                                 "content": self._call_tool(call.function.name, call.function.arguments)})
+            messages.append({"role": "assistant", "content": "", "tool_calls": [
+                {"id": cid, "type": "function", "function": {"name": name, "arguments": json.dumps(args) if isinstance(args, dict) else args}}
+                for cid, name, args in calls]})
+            for cid, name, args in calls:
+                messages.append({"role": "tool", "tool_call_id": cid, "content": self._call_tool(name, args)})
         answer = answer or FALLBACK
         self._save("user", user_text)
         self._save("assistant", answer)
