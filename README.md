@@ -26,7 +26,8 @@ python -m emporio.db
 # 4. Conversar
 python -m emporio.cli                                  # cliente anônimo
 python -m emporio.cli --telefone "(67) 99654-7821"     # simula mensagem vinda do WhatsApp de uma cliente cadastrada
-python -m emporio.cli --debug                          # mostra as ferramentas chamadas
+python -m emporio.cli --debug                          # mostra as ferramentas chamadas e o tempo de cada resposta
+python -m emporio.cli --modo restrito                  # modo para modelos pequenos (ver "Dois modos de execução")
 
 # Outros comandos
 python -m emporio.alerts      # relatório para o dono da loja
@@ -42,6 +43,7 @@ Configuração por variáveis de ambiente (todas opcionais):
 | `LLM_API_KEY` | `ollama` | chave do provedor |
 | `LLM_MODEL` | `huihui_ai/qwen2.5-abliterate:latest` | modelo |
 | `LLM_TEMPERATURE` | `0` | 0 para respostas estáveis e reprodutíveis |
+| `EMPORIO_MODE` | `livre` | `livre` (function calling) ou `restrito` (formulário JSON validado); ver "Dois modos de execução" |
 | `EMPORIO_TODAY` | `2026-03-25` | data de referência para os prazos (ver Suposições) |
 | `LOW_STOCK_THRESHOLD` | `2` | limite do alerta de estoque baixo |
 
@@ -52,17 +54,22 @@ Para usar um modelo pago, por exemplo: `LLM_BASE_URL=https://api.openai.com/v1 L
 ## Arquitetura
 
 ```
-mensagem ─► Agent (loop de function calling, até 5 passos)
-              │  system prompt: persona + regras + data + cliente identificado
-              ▼
-            LLM local (Ollama) ──escolhe──► Toolbox
-                                             ├─ buscar_produtos      ─► SQLite (catálogo, promoções, estoque)
-                                             ├─ consultar_pedido     ─► SQLite (pedidos, com verificação de identidade)
-                                             ├─ consultar_politica   ─► data/policies/<tópico>.md
-                                             ├─ registrar_interesse  ─► customer_interests
-                                             └─ registrar_reclamacao ─► complaints
-              ▲                                          │
-              └──── texto já formatado (preços, prazos) ◄┘
+                       ┌───────────── modo livre ─────────────┐
+mensagem ─► Agent ─────┤ LLM escolhe as ferramentas em loop   ├─► resposta ─► validador ─► cliente
+                       │ (function calling, até 5 passos)     │                 │
+                       ├──────────── modo restrito ───────────┤                 │ R$/data/hora fora
+                       │ LLM preenche JSON forçado pelo schema│                 │ dos dados: gera de
+                       │ → código confere os campos           │                 │ novo; se repetir,
+                       │ → código chama as ferramentas        │                 ▼ resposta segura
+                       │ → LLM só redige                      │
+                       └──────────────────┬───────────────────┘
+                                          ▼
+                              Toolbox (registro único)
+                               ├─ buscar_produtos      ─► SQLite (catálogo, promoções, estoque)
+                               ├─ consultar_pedido     ─► SQLite (pedidos, com verificação de identidade)
+                               ├─ consultar_politica   ─► data/policies/<tópico>.md
+                               ├─ registrar_interesse  ─► customer_interests
+                               └─ registrar_reclamacao ─► complaints
 ```
 
 ```
@@ -70,9 +77,11 @@ emporio/
   config.py    configuração por variáveis de ambiente
   db.py        CSV → SQLite, com limpeza e flags de qualidade
   rules.py     regras do manual em código: PIX, parcelamento, prazos, disponibilidade
-  tools.py     ferramentas do agente e seus schemas
-  prompts.py   persona e regras do system prompt
-  agent.py     loop de function calling e histórico
+  tools.py     ferramentas do agente e seus schemas (registro único dos dois modos)
+  interpreter.py  modo restrito: schema gerado das ferramentas e conferência dos campos
+  validator.py confere R$, datas e horários da resposta contra os dados consultados
+  prompts.py   persona, regras, prompt de redação e lembretes contextuais
+  agent.py     os dois modos, histórico e métricas por resposta
   cli.py       interface de terminal e modo roteiro
   alerts.py    relatório para o dono
 data/raw/      dados originais, sem alteração
@@ -105,7 +114,28 @@ O manual tem 8 páginas e tópicos bem delimitados. Ele virou 7 arquivos Markdow
 Com um manual grande, o próximo passo seria separar por seção e buscar com embeddings (o `nomic-embed-text` já roda no Ollama).
 
 ### Sem framework (LangChain, LlamaIndex)
-O agente inteiro (`agent.py`) tem menos de 100 linhas sobre o cliente `openai`. Assim não há dependência pesada e cada passo fica visível: os prompts, as chamadas de ferramenta e o tratamento de erros. Como o Ollama expõe uma API compatível com a da OpenAI, trocar de provedor muda só variáveis de ambiente.
+O agente (`agent.py`, com os dois modos) e o intérprete somam cerca de 300 linhas sobre o cliente `openai`. Assim não há dependência pesada e cada passo fica visível: os prompts, as chamadas de ferramenta e o tratamento de erros. Como o Ollama expõe uma API compatível com a da OpenAI, trocar de provedor muda só variáveis de ambiente.
+
+### Dois modos de execução
+
+O mesmo registro de ferramentas (`tool_specs`) atende os dois modos. A escolha é por `EMPORIO_MODE`:
+
+- **`livre`:** function calling em loop. O modelo decide quais ferramentas chamar, quantas vezes e em que ordem. Lida bem com pedidos em vários passos ("o violão mais barato dá pra parcelar em 10x?"), mas depende de o modelo seguir as regras.
+- **`restrito`:** o modelo só **preenche um formulário JSON**. O servidor força a saída ao schema (`response_format` com `json_schema`), então JSON malformado ou categoria fora do `enum` são impossíveis. O código então:
+  1. confere cada campo contra o texto do cliente: número de pedido, contato ou valor que o cliente não escreveu são descartados;
+  2. chama as ferramentas, uma por intenção;
+  3. responde sozinho a acessório e assunto fora do escopo, com texto fixo e sem chamar o modelo;
+  4. registra o interesse do cliente automaticamente;
+  5. pede ao modelo apenas a redação da resposta.
+
+**Validador nos dois modos** (`validator.py`): todo `R$`, data e horário da resposta precisa aparecer no retorno das ferramentas, na mensagem do cliente ou no histórico já validado. Se não aparecer, o modelo gera de novo, com o aviso do que inventou; se repetir, sai uma resposta segura que encaminha para a equipe. Ele não pega frases erradas sem número ("o pedido chegou"), só valores.
+
+**Por que isso não trava o crescimento:**
+- *Os dados crescem sem código:* o `enum` de categorias vem do banco e os tópicos de política vêm dos arquivos. Categoria nova entra no schema na próxima mensagem.
+- *As capacidades crescem pelo registro:* uma ferramenta nova (agendar aula, cotar frete) é uma função mais a descrição dela. O schema do modo restrito é gerado do registro, então ela vale nos dois modos sem mexer no intérprete.
+- *O modo acompanha o modelo disponível:* modelo pequeno e local usa `restrito`. Com GPU ou modelo via API, troca-se para `livre` e ganha-se raciocínio em vários passos, sem reescrever ferramentas. O limite real do `restrito` é justamente esse: ele decide tudo antes de ver os resultados.
+
+O padrão do intérprete foi adaptado de um projeto meu anterior (ver "Uso de assistentes de código").
 
 ### Modelo
 `huihui_ai/qwen2.5-abliterate`: um Qwen2.5 7B (Q4_K_M) local, com suporte a ferramentas no Ollama.
@@ -190,20 +220,43 @@ Os dados originais ficam intocados em `data/raw/`. Os problemas que encontrei, e
 
 ## Exemplos de conversa
 
-Gerados pelo próprio agente a partir de `examples/roteiros/`. As linhas com 🔧 mostram as ferramentas chamadas.
+Gerados pelo próprio agente a partir de `examples/roteiros/`, com `./examples/gerar.sh`. As linhas com 🔧 são as ferramentas chamadas; abaixo de cada resposta ficam o tempo e o que o validador barrou. O cabeçalho de cada arquivo registra o modelo, o modo, a temperatura e o hash do prompt.
 
-| Arquivo | Cenário |
+**Configuração padrão: 7B, modo livre** (`examples/livre_7b/`). A mesma bateria no 1.5B em modo restrito fica em `examples/restrito_1.5b/`, para comparação.
+
+| Roteiro | Cenário |
 |---|---|
-| [01_catalogo_violoes](examples/01_catalogo_violoes.md) | Violões até R$ 1.000, depois refinado para nylon/iniciante |
-| [02_loja_e_fora_de_escopo](examples/02_loja_e_fora_de_escopo.md) | Endereço e horário, pedido de acessório (cordas) e pergunta fora do escopo |
-| [03_devolucao_pedido](examples/03_devolucao_pedido.md) | **Não trivial:** pedido de devolução com verificação de identidade e prazos calculados |
-| [04_cliente_identificado_atraso](examples/04_cliente_identificado_atraso.md) | **Não trivial:** cliente reconhecida pelo WhatsApp, entrega atrasada e reclamação registrada |
-| [05_produto_esgotado](examples/05_produto_esgotado.md) | Produto esgotado com promoções vencidas, oferecendo alternativas |
+| [01_catalogo_violoes](examples/livre_7b/01_catalogo_violoes.md) | Violões até R$ 1.000, depois refinado para nylon/iniciante |
+| [02_loja_e_fora_de_escopo](examples/livre_7b/02_loja_e_fora_de_escopo.md) | Endereço e horário, pedido de acessório (cordas) e pergunta fora do escopo |
+| [03_devolucao_pedido](examples/livre_7b/03_devolucao_pedido.md) | **Não trivial:** devolução com verificação de identidade e prazos calculados |
+| [04_cliente_identificado_atraso](examples/livre_7b/04_cliente_identificado_atraso.md) | **Não trivial:** cliente reconhecida pelo WhatsApp, entrega atrasada e reclamação aberta |
+| [05_produto_esgotado](examples/livre_7b/05_produto_esgotado.md) | Produto esgotado com promoções vencidas, oferecendo alternativas |
+
+### Comparação: 7B livre × 1.5B restrito
+
+Mesmos 5 roteiros (9 mensagens), mesma máquina (CPU de 4 núcleos, sem GPU), temperatura 0. Revisão manual de cada resposta.
+
+| | 7B, modo livre | 1.5B, modo restrito |
+|---|---|---|
+| Roteiros corretos | **4,5 / 5** | 2,5 / 5 |
+| Chamadas de ferramenta corretas | 6 de 7 (1 categoria errada, corrigida pela busca tolerante) | **10 de 10** |
+| Fora de escopo (bolo) | ❌ inventou "a receita está no site da loja" | ✅ texto fixo, em 4 s |
+| Valores inventados que chegaram ao cliente | 0 | 0 (1 barrado pelo validador na 1ª rodada) |
+| Tempo médio por resposta | ~235 s (sem contar o carregamento do modelo) | **~73 s** |
+
+**O que os números dizem:**
+- **O intérprete pequeno funciona.** Preencher um formulário com schema forçado é uma tarefa estreita o bastante para um modelo de 1.5B: ele acertou todas as ferramentas e todos os campos.
+- **O redator pequeno não funciona.** Com dados corretos na mão, o 1.5B ainda ofereceu uma troca que a ferramenta dizia estar fora do prazo (03), escreveu um texto confuso sem o rastreio (04) e vazou um rótulo interno (01). O validador não pega esse tipo de erro, porque não há número errado.
+- **O modo livre do 7B erra pouco, mas erra onde o modo restrito é forte:** escopo e argumentos das ferramentas.
+
+Por isso o padrão é **7B livre**, e o próximo passo é a combinação das duas forças (ver "O que eu faria com mais tempo").
 
 ## Limitações conhecidas
 
 - **Latência em CPU:** de 1 a 6 minutos por resposta na máquina de desenvolvimento. Não dá para usar com cliente real sem GPU ou API.
 - **Modelo de 7B:** pode escolher a ferramenta errada, ignorar uma regra do prompt ou trocar de idioma. As regras críticas ficam no código, mas o texto final ainda é do modelo. Não há uma checagem automática que compare os números da resposta com os números que a ferramenta devolveu.
+- **Redação com modelo pequeno:** no modo restrito com 1.5B, a resposta pode contradizer os dados (oferecer troca fora do prazo) sem citar número errado, então o validador não barra.
+- **O validador só confere números:** preço, data e horário. Uma frase inventada sem número ("a receita está no site da loja") passa.
 - **Perguntas de refinamento:** às vezes o modelo filtra a lista que já mostrou em vez de buscar de novo. No exemplo 01, ele sugeriu 2 violões de nylon quando havia 4 até R$ 1.000.
 - **Busca por palavras-chave:** não entende sinônimos ("violão de aço" acha, "violão de cordas metálicas" não) nem pedidos vagos como "algo bom pra rock".
 - **Sem horário em tempo real:** o agente informa o horário de funcionamento, mas não sabe se a loja está aberta agora.
@@ -212,8 +265,8 @@ Gerados pelo próprio agente a partir de `examples/roteiros/`. As linhas com �
 
 ## O que eu faria com mais tempo
 
-1. **Avaliação automatizada:** um conjunto de 30 a 50 perguntas com a ferramenta e os valores esperados, rodando a cada mudança no prompt ou no modelo.
-2. **Validação da resposta:** checar se todo valor em R$ da resposta aparece no retorno da ferramenta e, se não aparecer, gerar de novo.
+1. **Intérprete pequeno + redator maior:** o 1.5B no modo restrito para entender a mensagem (rápido e acertou 10/10), e o 7B ou um modelo via API só para redigir. Para os casos críticos (prazos de troca, status de pedido), resposta por template preenchido pelo código, sem redação livre.
+2. **Avaliação automatizada:** um conjunto de 30 a 50 perguntas com a ferramenta e os valores esperados, rodando a cada mudança no prompt ou no modelo.
 3. **Integração com o WhatsApp Business API:** um webhook FastAPI chamando o mesmo `Agent.reply()`.
 4. **Dashboard para o dono:** Streamlit sobre `customer_interests`, `complaints` e o relatório de alertas, mostrando a inclinação de cada cliente por categoria.
 5. **Campanhas com opt-in:**
@@ -232,5 +285,8 @@ Usei o **Claude Code** (modelo Claude Opus) no terminal ao longo de todo o proje
 2. **Discussão de arquitetura:** propus uma versão mais ampla, com RAG no catálogo, memória de preferências, campanhas, alertas, voz e avatar. Discutimos o que cabia no prazo. O assistente defendeu SQL em vez de RAG para dados que mudam, e reduzimos o escopo para o núcleo mais os extras baratos (interesses, reclamações, alertas). O resto foi para o roadmap acima.
 3. **Implementação incremental:** cada etapa foi testada antes do commit. Primeiro dados, depois ferramentas com testes, depois o agente e por fim os alertas. O histórico do git mostra essa ordem.
 4. **Validação:** as ferramentas foram testadas sem LLM antes de conectar o modelo, e as conversas de exemplo são saídas reais do agente.
+5. **Iteração guiada pelas falhas:** a cada rodada de exemplos, eu e o assistente revisávamos as respostas, ele propunha a correção (de preferência no código, não no prompt) e eu decidia. As rodadas com falha estão commitadas, então o histórico mostra o antes e o depois (ver "Iterações com o modelo local").
+6. **Reaproveitamento de um projeto meu:** pedi para ele ler um projeto anterior meu (um assistente local com Ollama). De lá veio o padrão do modo restrito: o LLM só preenche um JSON com schema forçado, e o código confere cada campo contra o texto do usuário antes de usar. O assistente também apontou o que **não** se aplicava (a camada de decisão probabilística daquele projeto), e isso ficou de fora.
+7. **Decisão por medição:** a escolha entre 7B livre e 1.5B restrito saiu da mesma bateria de roteiros rodada nas duas configurações, não de opinião.
 
 <!-- TODO(Marlon): complemente com sua parte do workflow: o que você revisou, mudou ou decidiu diferente do assistente. -->
