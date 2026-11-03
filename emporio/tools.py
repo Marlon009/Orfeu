@@ -47,6 +47,8 @@ class Toolbox:
         if p["status"] == "active":
             lines.append(f"  Preço: {price.describe()}")
         lines.append(f"  Situação: {stock_text}")
+        if detailed and p["status"] == "active" and not p["discount_percent"]:
+            lines.append("  Promoção: nenhuma ativa no momento")
         if detailed and p["status"] == "active":
             if p["description_reliable"]:
                 specs = ", ".join(f"{k}: {v}" for k, v in json.loads(p["specs"]).items())
@@ -67,6 +69,8 @@ class Toolbox:
         # Modelos pequenos chutam a categoria (ex.: "Guitarras" para um violão); tenta sem ela.
         if result is None and termo and categoria:
             result = self._search(termo, None, preco_max)
+            if result:
+                result = f"(Nada em {categoria}; resultados de outras categorias, use a categoria indicada em cada produto.)\n{result}"
         return result or ("Nenhum produto encontrado no catálogo com esses critérios. "
                           f"Categorias que a loja vende: {', '.join(category_names(self.conn))}.")
 
@@ -117,7 +121,8 @@ class Toolbox:
         for p in unavailable[:2]:
             alts = self._alternatives(p, products)
             if alts:
-                out.append(f"\nAlternativas disponíveis para {p['name']}:")
+                status = rules.availability(p["status"], p["stock_quantity"])[1]
+                out.append(f"\nDIGA AO CLIENTE que {p['name']} está {status}. Alternativas disponíveis:")
                 out += [self._format_product(a, detailed=False) for a in alts]
         return "\n".join(out)
 
@@ -139,7 +144,8 @@ class Toolbox:
             WHERE i.order_id = ?""", (o["order_id"],)).fetchall()
         order_date = date.fromisoformat(o["order_date"])
         lines = [
-            f"Pedido nº {o['order_id']} — feito em {rules.fmt_date(order_date)}",
+            f"Pedido nº {o['order_id']}",
+            f"Data da compra: {rules.fmt_date(order_date)}",
             "Itens: " + "; ".join(f"{i['quantity']}x {i['name']}" for i in items),
             f"Total: {rules.brl(o['total_brl'])} ({rules.payment_label(o['payment_method'])})",
             f"Status: {rules.ORDER_STATUS.get(o['status'], o['status'])}",
