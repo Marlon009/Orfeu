@@ -1,0 +1,208 @@
+# Lia: agente de atendimento da Empório da Música
+
+Protótipo de um agente de mensagens de texto para a Empório da Música, uma loja fictícia de instrumentos em Campo Grande/MS. A Lia responde sobre o catálogo (preço, promoção, estoque), sobre pedidos (status, rastreio, prazos de troca) e sobre as políticas da loja. Ela sempre consulta os dados por ferramentas e nunca responde de memória.
+
+```
+Você: Quanto custa o Takamine GD20?
+  🔧 buscar_produtos(termo='Takamine GD20')
+Lia: O Takamine GD20 custa R$ 2.199,00. Com o pagamento à vista no PIX, você ganha um desconto de 5%, totalizando R$ 2.089,05. ...
+```
+
+## Como rodar
+
+Requisitos: Python 3.10+ e [Ollama](https://ollama.com).
+
+```bash
+# 1. Modelo local (o padrão do projeto; ver "Modelo" abaixo para trocar)
+ollama pull huihui_ai/qwen2.5-abliterate
+
+# 2. Dependências
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 3. Banco (opcional: é criado sozinho na primeira execução)
+python -m emporio.db
+
+# 4. Conversar
+python -m emporio.cli                                  # cliente anônimo
+python -m emporio.cli --telefone "(67) 99654-7821"     # simula mensagem vinda do WhatsApp de uma cliente cadastrada
+python -m emporio.cli --debug                          # mostra as ferramentas chamadas
+
+# Outros comandos
+python -m emporio.alerts      # relatório para o dono da loja
+python -m pytest              # testes das regras e ferramentas (não precisam do LLM)
+./examples/gerar.sh           # regera as conversas de exemplo
+```
+
+Configuração por variáveis de ambiente (todas opcionais):
+
+| Variável | Padrão | Para quê |
+|---|---|---|
+| `LLM_BASE_URL` | `http://localhost:11434/v1` | qualquer API compatível com a da OpenAI |
+| `LLM_API_KEY` | `ollama` | chave do provedor |
+| `LLM_MODEL` | `huihui_ai/qwen2.5-abliterate:latest` | modelo |
+| `EMPORIO_TODAY` | `2026-03-25` | data de referência para os prazos (ver Suposições) |
+| `LOW_STOCK_THRESHOLD` | `2` | limite do alerta de estoque baixo |
+
+Para usar um modelo pago, por exemplo: `LLM_BASE_URL=https://api.openai.com/v1 LLM_API_KEY=sk-... LLM_MODEL=gpt-4o-mini python -m emporio.cli`.
+
+> **Desempenho:** em CPU (4 núcleos, sem GPU), cada resposta leva de 1 a 6 minutos. Com GPU ou com um modelo via API, leva poucos segundos. Se o Ollama cortar o contexto, suba o limite com `OLLAMA_CONTEXT_LENGTH=8192 ollama serve`.
+
+## Arquitetura
+
+```
+mensagem ─► Agent (loop de function calling, até 5 passos)
+              │  system prompt: persona + regras + data + cliente identificado
+              ▼
+            LLM local (Ollama) ──escolhe──► Toolbox
+                                             ├─ buscar_produtos      ─► SQLite (catálogo, promoções, estoque)
+                                             ├─ consultar_pedido     ─► SQLite (pedidos, com verificação de identidade)
+                                             ├─ consultar_politica   ─► data/policies/<tópico>.md
+                                             ├─ registrar_interesse  ─► customer_interests
+                                             └─ registrar_reclamacao ─► complaints
+              ▲                                          │
+              └──── texto já formatado (preços, prazos) ◄┘
+```
+
+```
+emporio/
+  config.py    configuração por variáveis de ambiente
+  db.py        CSV → SQLite, com limpeza e flags de qualidade
+  rules.py     regras do manual em código: PIX, parcelamento, prazos, disponibilidade
+  tools.py     ferramentas do agente e seus schemas
+  prompts.py   persona e regras do system prompt
+  agent.py     loop de function calling e histórico
+  cli.py       interface de terminal e modo roteiro
+  alerts.py    relatório para o dono
+data/raw/      dados originais, sem alteração
+data/policies/ manual dividido por tópico
+examples/      conversas reais geradas pelo agente
+tests/         testes das regras e ferramentas
+```
+
+## Decisões técnicas
+
+### Abordagem: function calling, com as regras de negócio em Python
+O manual exige "nunca fornecer informações sobre preços, estoque ou prazos sem consultar o sistema". Por isso o agente acessa os dados só por ferramentas, e as ferramentas devolvem a resposta já calculada:
+- preço final com promoção ativa;
+- preço no PIX, que não acumula com promoção;
+- parcelamento máximo respeitando a parcela mínima;
+- situação do estoque;
+- alternativas quando o produto está esgotado;
+- prazos de devolução e garantia.
+
+O LLM decide qual ferramenta usar e reescreve o resultado no tom da loja, mas não faz contas. Isso é ainda mais importante com um modelo local de 7B, que erra aritmética e tende a inventar preços. E deixa as regras testáveis: `tests/` cobre tudo sem precisar do LLM.
+
+### Dados: SQLite e consulta na hora, sem RAG vetorial
+Dados estruturados (preço, estoque, status) ficam no SQLite e são consultados no momento da pergunta. Se um produto entra, sai do estoque ou é descontinuado, a próxima resposta já reflete a mudança, sem reindexar nada. Num banco de vetores, o agente ficaria respondendo com um retrato antigo do catálogo.
+
+A busca de produtos é por palavras-chave. Ela ignora acentos e plural ("violões" acha "violão"), dá mais peso ao nome e à categoria do que à descrição, e aceita filtro de categoria e de preço máximo.
+
+### Políticas: um arquivo por tópico, sem embeddings
+O manual tem 8 páginas e 8 tópicos bem delimitados. Ele virou um Markdown por tópico em `data/policies/`, e o modelo escolhe o tópico por um `enum` no schema da ferramenta. Com tão pouco conteúdo, escolher entre tópicos fixos é mais previsível que busca semântica, principalmente com um modelo pequeno. Para incluir um tópico novo, basta criar um `.md`, que a lista de tópicos é gerada a partir dos arquivos.
+
+Com um manual grande, o próximo passo seria separar por seção e buscar com embeddings (o `nomic-embed-text` já roda no Ollama).
+
+### Sem framework (LangChain, LlamaIndex)
+O agente inteiro (`agent.py`) tem menos de 100 linhas sobre o cliente `openai`. Assim não há dependência pesada e cada passo fica visível: os prompts, as chamadas de ferramenta e o tratamento de erros. Como o Ollama expõe uma API compatível com a da OpenAI, trocar de provedor muda só variáveis de ambiente.
+
+### Modelo
+`huihui_ai/qwen2.5-abliterate`: um Qwen2.5 7B (Q4_K_M) local, com suporte a ferramentas no Ollama.
+- **Por que local:** custo zero e dados de clientes fora de APIs externas.
+- **Por que Qwen2.5 7B:** entre os modelos locais desse porte, é dos mais consistentes em function calling e em português.
+- **Por que esta variante:** era a única versão de 7B disponível na máquina de desenvolvimento, sem espaço em disco para baixar outra.
+
+É uma variante "abliterada", ou seja, com o comportamento de recusa removido. Por isso, as restrições de escopo vêm todas do system prompt e das ferramentas, que por construção só leem dados da loja. Em produção, eu usaria o `qwen2.5:7b` original, que é a mesma arquitetura e só pede trocar o `LLM_MODEL`, ou um modelo via API.
+
+### Estratégia de prompt
+O system prompt (`emporio/prompts.py`) tem três partes:
+- a persona, tirada da seção 7.1 do manual: informal mas profissional, "um amigo que entende de música";
+- um guia de quando usar cada ferramenta;
+- 10 regras numeradas: não inventar dados, copiar valores sem calcular, mostrar promoção com preço original e percentual, verificar identidade, escopo só de instrumentos, recusar assuntos fora da loja.
+
+Além disso, as ferramentas reforçam o prompt com instruções no próprio retorno. Por exemplo:
+- "PREVISÃO VENCIDA: peça desculpas e registre uma reclamação";
+- "Não dê nenhum detalhe do pedido";
+- "ficha técnica em revisão".
+
+Isso funciona melhor que um prompt longo, porque a instrução chega exatamente na hora em que é relevante.
+
+### Identidade e privacidade (LGPD)
+- **Cliente que chega pelo WhatsApp:** o telefone identifica a pessoa, simulado com `--telefone`. A Lia cumprimenta pelo nome e pode consultar os pedidos dela.
+- **Cliente anônimo:** precisa informar o número do pedido e o e-mail ou telefone do cadastro.
+- **Pedido inexistente e identidade errada recebem a mesma resposta**, para não confirmar que um pedido existe.
+
+### Histórico
+As conversas ficam na tabela `messages`, identificadas pelo telefone. Um cliente que volta tem o contexto das últimas 6 trocas. Só as mensagens finais são salvas, não os resultados das ferramentas, para não reaproveitar preço ou estoque antigo.
+
+### Extras para a equipe
+- **`registrar_interesse`:** o agente registra em silêncio o que o cliente procura, como "violão nylon para iniciante". É a base para entender a preferência de cada cliente e alimentar um dashboard.
+- **`registrar_reclamacao`:** registra a reclamação, gera um protocolo e segue a seção 7.3 do manual (retorno em 24 horas úteis).
+- **`python -m emporio.alerts`:** relatório para o dono com estoque baixo, produtos sem estoque, incoerências nos dados, entregas atrasadas, pedidos parados, reclamações abertas e interesses por categoria.
+
+## Tratamento de dados e suposições
+
+Os dados originais ficam intocados em `data/raw/`. Os problemas que encontrei, e como tratei cada um:
+
+| Problema encontrado | Tratamento |
+|---|---|
+| Descrição de 6 produtos (IDs 135, 137, 139, 140, 142, 144) cita outra marca que não a do nome (ex.: "Music Man Bass 1X" descrito como Fender Jazz Bass) | Detecção automática por marca (`description_reliable = 0`). O agente informa preço e estoque, mas não a ficha técnica. Aparece no relatório de alertas. |
+| Produto 96 `active` com estoque 0; 136 `discontinued` com 13 unidades; 130 `coming_soon` com pedidos | O status manda: só `active` com estoque > 0 é vendável. Descontinuado e "em breve" não mostram preço. Os casos aparecem nos alertas. |
+| Várias promoções por produto, quase todas inativas | Só conta promoção com `is_active = 1`, como manda a seção 7.3. |
+| Totais dos pedidos 3 e 20 diferentes da soma dos itens (`order_items` não tem preço unitário) | O agente mostra o total registrado, que é o que o cliente pagou. A divergência vai para os alertas. |
+| Clientes 11 e 43 com o mesmo e-mail | A verificação compara o e-mail do dono daquele pedido específico, então não há ambiguidade. |
+| Manual: telefone (67) 3341-4444 e WhatsApp (67) 3321-4500 | Assumi o primeiro como telefone fixo e o segundo como WhatsApp, porque a seção 7 é a específica do canal. |
+| Manual: e-mail com acento na tabela (`empóriodamusica`) | Usei o da capa, sem acento, já que o acento torna o endereço inválido. |
+| Manual: "até 3x sem valor mínimo (exceto abaixo de R$ 50)" | Interpretei como parcela mínima de R$ 50 de 2x a 3x. |
+| Manual: frete grátis "acima de R$ 500" e taxa "abaixo de R$ 500" | Considerei exatamente R$ 500 como frete grátis, a leitura mais favorável ao cliente. |
+| Manual cita sopro e cordas orquestrais, mas não há produtos nessas categorias | O agente só oferece as categorias que têm produtos ativos. |
+| Pedidos não têm data real de entrega | Usei `estimated_delivery` como data de recebimento para os prazos. |
+| Pedidos não dizem se a compra foi online ou presencial | O prazo de arrependimento aparece rotulado como "compras online". |
+| Os dados terminam em março/2026 | A data de referência é configurável (`EMPORIO_TODAY`, padrão 25/03/2026). Com a data real, todos os prazos estariam vencidos e os pedidos pendentes teriam 7 meses. |
+| Significado dos status de pedido | `pending` = aguardando pagamento; `confirmed` = pago e em separação; `shipped` = enviado; `delivered` = entregue. |
+
+## Exemplos de conversa
+
+Gerados pelo próprio agente a partir de `examples/roteiros/`. As linhas com 🔧 mostram as ferramentas chamadas.
+
+| Arquivo | Cenário |
+|---|---|
+| [01_catalogo_violoes](examples/01_catalogo_violoes.md) | Violões até R$ 1.000, depois refinado para nylon/iniciante |
+| [02_loja_e_fora_de_escopo](examples/02_loja_e_fora_de_escopo.md) | Endereço e horário, pedido de acessório (cordas) e pergunta fora do escopo |
+| [03_devolucao_pedido](examples/03_devolucao_pedido.md) | **Não trivial:** pedido de devolução com verificação de identidade e prazos calculados |
+| [04_cliente_identificado_atraso](examples/04_cliente_identificado_atraso.md) | **Não trivial:** cliente reconhecida pelo WhatsApp, entrega atrasada e reclamação registrada |
+| [05_produto_esgotado](examples/05_produto_esgotado.md) | Produto esgotado com promoções vencidas, oferecendo alternativas |
+
+## Limitações conhecidas
+
+- **Latência em CPU:** de 1 a 6 minutos por resposta na máquina de desenvolvimento. Não dá para usar com cliente real sem GPU ou API.
+- **Modelo de 7B:** pode escolher a ferramenta errada, ignorar uma regra do prompt ou trocar de idioma. As regras críticas ficam no código, mas o texto final ainda é do modelo. Não há uma checagem automática que compare os números da resposta com os números que a ferramenta devolveu.
+- **Busca por palavras-chave:** não entende sinônimos ("violão de aço" acha, "violão de cordas metálicas" não) nem pedidos vagos como "algo bom pra rock".
+- **Sem horário em tempo real:** o agente informa o horário de funcionamento, mas não sabe se a loja está aberta agora.
+- **Sem avaliação sistemática:** os exemplos foram revisados à mão. Não há um conjunto de perguntas com respostas esperadas medido a cada mudança.
+- **Interesse sem consentimento:** `registrar_interesse` guarda interesses sem pedir permissão. Para uso real, é preciso definir a base legal (LGPD) e permitir a exclusão.
+
+## O que eu faria com mais tempo
+
+1. **Avaliação automatizada:** um conjunto de 30 a 50 perguntas com a ferramenta e os valores esperados, rodando a cada mudança no prompt ou no modelo.
+2. **Validação da resposta:** checar se todo valor em R$ da resposta aparece no retorno da ferramenta e, se não aparecer, gerar de novo.
+3. **Integração com o WhatsApp Business API:** um webhook FastAPI chamando o mesmo `Agent.reply()`.
+4. **Dashboard para o dono:** Streamlit sobre `customer_interests`, `complaints` e o relatório de alertas, mostrando a inclinação de cada cliente por categoria.
+5. **Campanhas com opt-in:**
+   - coluna de consentimento por cliente;
+   - mensagens de datas especiais (Black Friday, Semana do Músico, Natal) para quem autorizou, usando os interesses registrados;
+   - lembretes ligados à garantia e à manutenção do instrumento.
+6. **Recomendação:** sugerir produtos a partir do histórico de compras e dos interesses.
+7. **Busca híbrida no catálogo:** palavras-chave e embeddings, para pedidos vagos.
+8. **Voz e avatar:** transcrição de áudio do WhatsApp e resposta em voz.
+
+## Uso de assistentes de código
+
+Usei o **Claude Code** (modelo Claude Opus) no terminal ao longo de todo o projeto, como par de programação:
+
+1. **Leitura e análise:** pedi para ele ler o enunciado, o manual e os CSVs e listar as inconsistências. Ele escreveu um script que comparou os totais dos pedidos com os itens e encontrou as divergências da tabela acima.
+2. **Discussão de arquitetura:** propus uma versão mais ampla, com RAG no catálogo, memória de preferências, campanhas, alertas, voz e avatar. Discutimos o que cabia no prazo. O assistente defendeu SQL em vez de RAG para dados que mudam, e reduzimos o escopo para o núcleo mais os extras baratos (interesses, reclamações, alertas). O resto foi para o roadmap acima.
+3. **Implementação incremental:** cada etapa foi testada antes do commit. Primeiro dados, depois ferramentas com testes, depois o agente e por fim os alertas. O histórico do git mostra essa ordem.
+4. **Validação:** as ferramentas foram testadas sem LLM antes de conectar o modelo, e as conversas de exemplo são saídas reais do agente.
+
+<!-- TODO(Marlon): complemente com sua parte do workflow: o que você revisou, mudou ou decidiu diferente do assistente. -->
