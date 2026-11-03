@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 OUT="${1:-examples}"
 mkdir -p "$OUT"
 # Começa cada exemplo do zero (sem histórico de rodadas anteriores).
-python3 -c "from emporio.db import connect; c = connect(); c.execute(\"DELETE FROM messages WHERE session_id LIKE 'ex0%'\"); c.execute('DELETE FROM complaints'); c.commit()"
+python3 -c "from emporio.db import connect; c = connect(); c.execute(\"DELETE FROM messages WHERE session_id LIKE 'ex0%'\"); c.execute('DELETE FROM complaints'); c.execute(\"DELETE FROM sqlite_sequence WHERE name = 'complaints'\"); c.commit()"
 run() { python3 -m emporio.cli --roteiro "examples/roteiros/$1.txt" --saida "$OUT/$1.md" "${@:2}"; }
 run 01_catalogo_violoes --sessao ex01
 run 02_loja_e_fora_de_escopo --sessao ex02
