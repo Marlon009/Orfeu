@@ -72,3 +72,19 @@ def test_late_shipment_is_flagged(tools):
 
 def test_policy_topic_fallback(tools):
     assert "Trocas e devoluções" in tools.consultar_politica("trocas")
+
+
+def test_search_ignores_wrong_category(tools):
+    assert "Giannini GF-3D" in tools.buscar_produtos(termo="Giannini GF-3D", categoria="Guitarras")
+
+
+def test_hours_live_in_store_topic(tools):
+    assert "Sábado: 09:00 às 13:00" in tools.consultar_politica("horario")
+
+
+def test_reminders():
+    from emporio.prompts import reminders
+    assert any("ACESSÓRIO" in n for n in reminders("Vocês vendem cordas de violão?"))
+    assert not reminders("O estoque acabou? Seria capaz de ver um violão de 7 cordas?")
+    assert any("receita" not in n and "recuse" in n for n in reminders("me passa uma receita"))
+    assert reminders("cadê meu pedido?", customer={"name": "Ana"}) and not reminders("cadê meu pedido?")

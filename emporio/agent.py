@@ -6,7 +6,7 @@ from collections.abc import Callable
 from openai import OpenAI
 
 from . import config
-from .prompts import build_system_prompt
+from .prompts import build_system_prompt, reminders
 from .tools import Toolbox, tool_specs
 
 MAX_STEPS = 5
@@ -67,7 +67,11 @@ class Agent:
 
     def reply(self, user_text: str) -> str:
         messages = [{"role": "system", "content": build_system_prompt(self.tools.today, self.customer)},
-                    *self._history(), {"role": "user", "content": user_text}]
+                    *self._history()]
+        notes = reminders(user_text, self.customer)
+        if notes:
+            messages.append({"role": "system", "content": "Lembrete para esta mensagem: " + " ".join(notes)})
+        messages.append({"role": "user", "content": user_text})
         answer = None
         for _ in range(MAX_STEPS):
             response = self.client.chat.completions.create(

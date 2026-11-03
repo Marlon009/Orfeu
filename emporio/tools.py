@@ -63,6 +63,14 @@ class Toolbox:
 
     def buscar_produtos(self, termo: str | None = None, categoria: str | None = None,
                         preco_max: float | None = None) -> str:
+        result = self._search(termo, categoria, preco_max)
+        # Modelos pequenos chutam a categoria (ex.: "Guitarras" para um violão); tenta sem ela.
+        if result is None and termo and categoria:
+            result = self._search(termo, None, preco_max)
+        return result or ("Nenhum produto encontrado no catálogo com esses critérios. "
+                          f"Categorias que a loja vende: {', '.join(category_names(self.conn))}.")
+
+    def _search(self, termo, categoria, preco_max) -> str | None:
         products = self._products()
         candidates = products
         if categoria:
@@ -97,8 +105,7 @@ class Toolbox:
                           if rules.price_for(p["price_brl"], p["discount_percent"]).final <= preco_max]
 
         if not candidates:
-            return ("Nenhum produto encontrado no catálogo com esses critérios. "
-                    f"Categorias que a loja vende: {', '.join(category_names(self.conn))}.")
+            return None
 
         shown = candidates[:MAX_RESULTS]
         detailed = len(shown) <= 3
@@ -180,7 +187,8 @@ class Toolbox:
         topic = rules.normalize(topico).strip().replace(" ", "_")
         path = POLICIES_DIR / f"{topic}.md"
         if not path.exists():
-            matches = [t for t in policy_topics() if topic[:5] in t]
+            matches = [t for t in policy_topics() if topic[:5] in t
+                       or topic[:5] in rules.normalize((POLICIES_DIR / f"{t}.md").read_text(encoding="utf-8"))]
             if not matches:
                 return f"Tópico não encontrado. Tópicos disponíveis: {', '.join(policy_topics())}."
             path = POLICIES_DIR / f"{matches[0]}.md"
@@ -222,11 +230,13 @@ def tool_specs(conn: sqlite3.Connection) -> list[dict]:
             "preco_max": {"type": "number", "description": "Preço máximo em reais."}}),
         fn("consultar_pedido",
            "Consulta status, itens, rastreio e prazos de troca/devolução de um pedido. "
-           "Se o cliente não estiver identificado, exige o número do pedido e o e-mail ou telefone do cadastro.",
+           "Cliente identificado: chame SEM argumentos para ver todos os pedidos dele. "
+           "Cliente não identificado: exige o número do pedido e o e-mail ou telefone do cadastro.",
            {"numero_pedido": {"type": "integer"},
             "email_ou_telefone": {"type": "string"}}),
         fn("consultar_politica",
-           "Consulta o manual da loja: endereço/contato, horário, pagamento, trocas e devoluções, frete, promoções, garantia, privacidade.",
+           "Consulta o manual da loja. Tópicos: loja (endereço, contato e HORÁRIO), pagamento (formas e parcelamento), "
+           "trocas_devolucoes, frete_entrega, promocoes (regras gerais), garantia, privacidade.",
            {"topico": {"type": "string", "enum": policy_topics()}}, ["topico"]),
         fn("registrar_interesse",
            "Registra em silêncio o interesse do cliente em um tipo de instrumento, para a equipe de vendas.",
