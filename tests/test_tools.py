@@ -98,4 +98,7 @@ def test_tool_call_written_as_text():
     agent = Agent(client=object())
     calls = agent._calls_in_text('Ronaldo\n{"name": "buscar_produtos", "arguments": {"preco_max": 1000}}')
     assert calls == [("text-call", "buscar_produtos", {"preco_max": 1000})]
+    assert agent._calls_in_text("consultar_pedido()") == [("text-call", "consultar_pedido", {})]
+    assert agent._calls_in_text("consultar_pedido(numero_pedido=7)") == [("text-call", "consultar_pedido", {"numero_pedido": 7})]
     assert agent._calls_in_text("Olá! Tudo bem?") == []
+    assert agent._calls_in_text("Veja (isso)") == []

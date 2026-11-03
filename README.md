@@ -41,6 +41,7 @@ Configuração por variáveis de ambiente (todas opcionais):
 | `LLM_BASE_URL` | `http://localhost:11434/v1` | qualquer API compatível com a da OpenAI |
 | `LLM_API_KEY` | `ollama` | chave do provedor |
 | `LLM_MODEL` | `huihui_ai/qwen2.5-abliterate:latest` | modelo |
+| `LLM_TEMPERATURE` | `0` | 0 para respostas estáveis e reprodutíveis |
 | `EMPORIO_TODAY` | `2026-03-25` | data de referência para os prazos (ver Suposições) |
 | `LOW_STOCK_THRESHOLD` | `2` | limite do alerta de estoque baixo |
 
@@ -99,7 +100,7 @@ Dados estruturados (preço, estoque, status) ficam no SQLite e são consultados 
 A busca de produtos é por palavras-chave. Ela ignora acentos e plural ("violões" acha "violão"), dá mais peso ao nome e à categoria do que à descrição, e aceita filtro de categoria e de preço máximo.
 
 ### Políticas: um arquivo por tópico, sem embeddings
-O manual tem 8 páginas e 8 tópicos bem delimitados. Ele virou um Markdown por tópico em `data/policies/`, e o modelo escolhe o tópico por um `enum` no schema da ferramenta. Com tão pouco conteúdo, escolher entre tópicos fixos é mais previsível que busca semântica, principalmente com um modelo pequeno. Para incluir um tópico novo, basta criar um `.md`, que a lista de tópicos é gerada a partir dos arquivos.
+O manual tem 8 páginas e tópicos bem delimitados. Ele virou 7 arquivos Markdown em `data/policies/`. Endereço, contato e horário ficaram juntos porque quase sempre são perguntados juntos, e o modelo escolhe o tópico por um `enum` no schema da ferramenta. Com tão pouco conteúdo, escolher entre tópicos fixos é mais previsível que busca semântica, principalmente com um modelo pequeno. Para incluir um tópico novo, basta criar um `.md`, que a lista de tópicos é gerada a partir dos arquivos.
 
 Com um manual grande, o próximo passo seria separar por seção e buscar com embeddings (o `nomic-embed-text` já roda no Ollama).
 
@@ -127,6 +128,13 @@ Além disso, as ferramentas reforçam o prompt com instruções no próprio reto
 
 Isso funciona melhor que um prompt longo, porque a instrução chega exatamente na hora em que é relevante.
 
+Pelo mesmo motivo, o agente injeta **lembretes por palavra-chave** (`prompts.reminders`) antes da mensagem do cliente:
+- acessório citado: lembra que a loja não vende acessórios;
+- assunto fora da loja: lembra de recusar;
+- cliente identificado falando de pedido: manda chamar `consultar_pedido` sem argumentos.
+
+A checagem é por palavra inteira, para "acabou" não disparar "cabo".
+
 ### Identidade e privacidade (LGPD)
 - **Cliente que chega pelo WhatsApp:** o telefone identifica a pessoa, simulado com `--telefone`. A Lia cumprimenta pelo nome e pode consultar os pedidos dela.
 - **Cliente anônimo:** precisa informar o número do pedido e o e-mail ou telefone do cadastro.
@@ -139,6 +147,25 @@ As conversas ficam na tabela `messages`, identificadas pelo telefone. Um cliente
 - **`registrar_interesse`:** o agente registra em silêncio o que o cliente procura, como "violão nylon para iniciante". É a base para entender a preferência de cada cliente e alimentar um dashboard.
 - **`registrar_reclamacao`:** registra a reclamação, gera um protocolo e segue a seção 7.3 do manual (retorno em 24 horas úteis).
 - **`python -m emporio.alerts`:** relatório para o dono com estoque baixo, produtos sem estoque, incoerências nos dados, entregas atrasadas, pedidos parados, reclamações abertas e interesses por categoria.
+
+## Iterações com o modelo local
+
+Os exemplos foram gerados três vezes, e o histórico do git guarda cada rodada. Cada falha virou uma correção **no código, não no prompt**, sempre que possível:
+
+| Falha observada (7B abliterado) | Correção |
+|---|---|
+| Inventou o nome "Ronaldo" para um cliente anônimo | Contexto explícito: "você NÃO sabe o nome dele" |
+| Inventou o horário de sábado (10h às 20h) ao responder "endereço e horário" | Endereço e horário no mesmo tópico, mais a regra "consulte os dois assuntos" |
+| Respondeu com uma receita de bolo | Exemplos de recusa no prompt e lembrete contextual |
+| Disse que "vende cordas, mas..." | Lembrete contextual de acessório |
+| Buscou o violão na categoria Guitarras e inventou uma resposta | A busca refaz sem a categoria e avisa o modelo da categoria certa |
+| Cliente identificada, mas o modelo pediu o número do pedido | Lembrete e descrição da ferramenta ("chame SEM argumentos") |
+| Escreveu a chamada da ferramenta como JSON no texto | O agente interpreta esse JSON e executa a chamada (falha conhecida do Qwen) |
+| Leu "garantia dentro do prazo" e prometeu uma troca | A ferramenta entrega a `CONCLUSÃO:` pronta (o que ainda vale) |
+| Disse "vou registrar a reclamação" e não registrou | Entrega atrasada abre a reclamação no código, sem duplicar |
+| Confundiu a data da compra com a data de entrega | Rótulo "Data da compra" |
+
+A causa mais provável da falha de escopo é a própria variante abliterada, que tem a direção de recusa removida. Por isso, para produção, o README recomenda o `qwen2.5:7b` original.
 
 ## Tratamento de dados e suposições
 
@@ -177,6 +204,7 @@ Gerados pelo próprio agente a partir de `examples/roteiros/`. As linhas com �
 
 - **Latência em CPU:** de 1 a 6 minutos por resposta na máquina de desenvolvimento. Não dá para usar com cliente real sem GPU ou API.
 - **Modelo de 7B:** pode escolher a ferramenta errada, ignorar uma regra do prompt ou trocar de idioma. As regras críticas ficam no código, mas o texto final ainda é do modelo. Não há uma checagem automática que compare os números da resposta com os números que a ferramenta devolveu.
+- **Perguntas de refinamento:** às vezes o modelo filtra a lista que já mostrou em vez de buscar de novo. No exemplo 01, ele sugeriu 2 violões de nylon quando havia 4 até R$ 1.000.
 - **Busca por palavras-chave:** não entende sinônimos ("violão de aço" acha, "violão de cordas metálicas" não) nem pedidos vagos como "algo bom pra rock".
 - **Sem horário em tempo real:** o agente informa o horário de funcionamento, mas não sabe se a loja está aberta agora.
 - **Sem avaliação sistemática:** os exemplos foram revisados à mão. Não há um conjunto de perguntas com respostas esperadas medido a cada mudança.

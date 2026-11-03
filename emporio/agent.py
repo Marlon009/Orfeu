@@ -1,5 +1,7 @@
 """Loop de function calling sobre qualquer API compatível com a OpenAI (Ollama por padrão)."""
+import ast
 import json
+import re
 import sqlite3
 from collections.abc import Callable
 
@@ -66,7 +68,14 @@ class Agent:
         return result
 
     def _calls_in_text(self, content: str) -> list[tuple[str, str, dict]]:
-        """O Qwen às vezes escreve a chamada como JSON no texto em vez de usar tool_calls."""
+        """O Qwen às vezes escreve a chamada no texto (JSON ou `nome(arg=valor)`) em vez de usar tool_calls."""
+        match = re.fullmatch(r"\s*(\w+)\((.*)\)\s*", content, re.DOTALL)
+        if match and match[1] in self.params:
+            try:
+                call = ast.parse(f"f({match[2]})", mode="eval").body
+                return [("text-call", match[1], {k.arg: ast.literal_eval(k.value) for k in call.keywords})]
+            except (SyntaxError, ValueError):
+                return []
         start, end = content.find("{"), content.rfind("}")
         if start < 0 or end < start:
             return []
