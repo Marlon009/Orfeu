@@ -102,3 +102,9 @@ def test_tool_call_written_as_text():
     assert agent._calls_in_text("consultar_pedido(numero_pedido=7)") == [("text-call", "consultar_pedido", {"numero_pedido": 7})]
     assert agent._calls_in_text("Olá! Tudo bem?") == []
     assert agent._calls_in_text("Veja (isso)") == []
+
+
+def test_generic_search_hides_unavailable(tools):
+    out = tools.buscar_produtos(termo="nylon", categoria="Violões", preco_max=1000)
+    assert "Shelby SN-7C" not in out and "Yamaha C40" in out
+    assert "DESCONTINUADO" in tools.buscar_produtos(termo="Shelby SN-7C")

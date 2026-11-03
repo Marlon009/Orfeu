@@ -83,7 +83,9 @@ class Toolbox:
 
         if termo:
             query = rules.tokens(termo)
-            compact = "".join(rules.normalize(termo).split())
+            # Só termos com cara de modelo ("GD20", "Yamaha C40") valem como pedido pelo nome.
+            looks_like_model = any(c.isdigit() for c in termo) or len(query) > 1
+            compact = "".join(rules.normalize(termo).split()) if looks_like_model else ""
             scored = []
             for p in candidates:
                 strong = set(rules.tokens(p["name"] + " " + p["category"]))
@@ -99,6 +101,11 @@ class Toolbox:
                 scored = [s for s in scored if s[0]]
             scored.sort(key=lambda s: (-s[0], s[1]["price_brl"]))
             candidates = [p for _, p in scored]
+            # Indisponível só aparece se o cliente pediu aquele modelo pelo nome; numa busca
+            # genérica ("nylon") ele só desvia a conversa das opções que dá para comprar.
+            available = [p for p in candidates if rules.availability(p["status"], p["stock_quantity"])[0]]
+            if available and not any(score == 100 for score, _ in scored):
+                candidates = available
         else:
             # Sem um modelo específico, só faz sentido listar o que dá para comprar.
             candidates = [p for p in candidates if rules.availability(p["status"], p["stock_quantity"])[0]]

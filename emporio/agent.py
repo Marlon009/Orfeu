@@ -183,7 +183,8 @@ class Agent:
         data_block = "\n\n".join(self.tool_outputs) or "(nenhuma consulta: é só conversa)"
         messages = [{"role": "system", "content": WRITER_PROMPT.format(
                         customer=self.customer["name"].split()[0] if self.customer else "não identificado")},
-                    *history[-4:],
+                    # Só as mensagens do cliente: modelos pequenos copiam respostas anteriores.
+                    *[m for m in history[-4:] if m["role"] == "user"],
                     {"role": "user", "content": f"{user_text}\n\n[DADOS CONSULTADOS]\n{data_block}"
                      + (f"\n\n[LEMBRETE] {' '.join(notes)}" if notes else "")}]
         for attempt in range(2):
