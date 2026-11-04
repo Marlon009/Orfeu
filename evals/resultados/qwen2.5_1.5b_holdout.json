@@ -1,0 +1,179 @@
+[
+ {
+  "id": "prod-07",
+  "grupo": "produto",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos",
+    "consultar_politica"
+   ],
+   "termo": "Fender",
+   "categoria": "Guitarras"
+  },
+  "segundos": 3.1
+ },
+ {
+  "id": "prod-08",
+  "grupo": "produto",
+  "ok": true,
+  "problemas": [],
+  "descartados": [
+   "preco_max"
+  ],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos"
+   ],
+   "categoria": "Teclados e Pianos"
+  },
+  "segundos": 3.7
+ },
+ {
+  "id": "nrec-04",
+  "grupo": "nao_recusar",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos"
+   ],
+   "termo": "ukulele",
+   "categoria": "Ukuleles"
+  },
+  "segundos": 4.3
+ },
+ {
+  "id": "ped-05",
+  "grupo": "pedido",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_pedido",
+    "consultar_politica"
+   ],
+   "numero_pedido": 8,
+   "email_ou_telefone": "(67) 99654-7821"
+  },
+  "segundos": 6.7
+ },
+ {
+  "id": "ped-06",
+  "grupo": "pedido",
+  "ok": true,
+  "problemas": [],
+  "descartados": [
+   "email_ou_telefone",
+   "numero_pedido"
+  ],
+  "saida": {
+   "intencoes": [
+    "consultar_pedido",
+    "consultar_politica"
+   ]
+  },
+  "segundos": 5.6
+ },
+ {
+  "id": "pol-06",
+  "grupo": "politica",
+  "ok": false,
+  "problemas": [
+   "faltou intenção ['consultar_politica']",
+   "topico: esperado 'privacidade', veio None"
+  ],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "conversa"
+   ],
+   "termo": "meu pedido"
+  },
+  "segundos": 2.9
+ },
+ {
+  "id": "pol-07",
+  "grupo": "politica",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_politica"
+   ],
+   "topico": "promocoes"
+  },
+  "segundos": 2.9
+ },
+ {
+  "id": "ace-03",
+  "grupo": "acessorio",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "acessorio"
+   ],
+   "termo": "cabo P10"
+  },
+  "segundos": 2.8
+ },
+ {
+  "id": "fora-04",
+  "grupo": "fora_de_escopo",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "fora_de_escopo"
+   ]
+  },
+  "segundos": 2.1
+ },
+ {
+  "id": "rec-02",
+  "grupo": "reclamacao",
+  "ok": false,
+  "problemas": [
+   "faltou intenção ['registrar_reclamacao']"
+  ],
+  "descartados": [
+   "email_ou_telefone",
+   "numero_pedido"
+  ],
+  "saida": {
+   "intencoes": [
+    "consultar_pedido",
+    "consultar_politica"
+   ],
+   "topico": "trocas_devolucoes"
+  },
+  "segundos": 6.2
+ },
+ {
+  "id": "multi-02",
+  "grupo": "multiplo",
+  "ok": false,
+  "problemas": [
+   "topico: esperado 'frete_entrega', veio 'loja'"
+  ],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos",
+    "consultar_politica"
+   ],
+   "termo": "ukulele soprano",
+   "topico": "loja",
+   "categoria": "Ukuleles"
+  },
+  "segundos": 4.9
+ }
+]

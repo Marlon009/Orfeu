@@ -32,6 +32,7 @@ python -m emporio.cli --modo restrito                  # modo para modelos peque
 # Outros comandos
 python -m emporio.alerts      # relatório para o dono da loja
 python -m pytest              # testes das regras e ferramentas (não precisam do LLM)
+LLM_MODEL=qwen2.5:1.5b python -m emporio.evaluate   # bateria fechada do intérprete
 ./examples/gerar.sh           # regera as conversas de exemplo
 ```
 
@@ -197,6 +198,32 @@ Os exemplos foram gerados três vezes, e o histórico do git guarda cada rodada.
 
 A causa mais provável da falha de escopo é a própria variante abliterada, que tem a direção de recusa removida. Por isso, para produção, o README recomenda o `qwen2.5:7b` original.
 
+## Bateria fechada do intérprete
+
+`python -m emporio.evaluate` roda uma bateria de 38 casos ([evals/interpretador.jsonl](evals/interpretador.jsonl)) com nota automática, sem julgamento humano. Mede só o intérprete do modo restrito (intenções e campos do JSON), que é a parte barata o bastante para rodar no CPU (cerca de 5 s por caso com o 1.5B).
+
+**Regras da nota:**
+- todas as intenções esperadas precisam aparecer;
+- pergunta da loja que vira recusa reprova, e recusa que chama ferramenta também reprova. Assim, nem "recusar tudo" nem "nunca recusar" tiram nota boa, e por isso há um grupo de casos que **não** devem ser recusados ("violão de 7 cordas", "bateria eletrônica");
+- os campos esperados precisam bater, e os campos que o cliente não disse precisam estar ausentes.
+
+**Desenvolvimento e reserva:** 27 casos de desenvolvimento, usados para corrigir o sistema, e 11 de reserva, que só rodam com `--reserva` e têm cada uso registrado em `evals/reserva_usos.jsonl`.
+
+**Resultado com `qwen2.5:1.5b`** ([evals/resultados/](evals/resultados/)):
+
+| Rodada | Desenvolvimento | O que mudou |
+|---|---|---|
+| 1 | 19/27 (70%) | — |
+| 2 | 23/27 (85%) | "acessorio" só vale se o texto citar um acessório; "9 mil" vira 9000; exemplos novos |
+| 3 | 26/27 (96%) | termo e categoria precisam ter base no texto; categoria inferida do texto |
+| **Reserva (uso único)** | **8/11 (73%)** | — |
+
+A distância entre 96% e 73% é o achado principal. Parte da melhora era ajuste aos casos de desenvolvimento: por exemplo, a descrição mais clara do tópico de frete resolveu o caso de Dourados, mas não o de Corumbá na reserva. Com a reserva usada, ela não vale mais para medir as próximas mudanças; a próxima rodada precisa de casos novos de reserva.
+
+A conferência literal descartou de 4 a 6 campos inventados por rodada (números de pedido, preços e contatos que o cliente não escreveu). Sem ela, cada um seria uma falha a mais.
+
+**Como isso escala com GPU:** a mesma bateria vira a função de recompensa para ajuste fino (SFT com as saídas que passam, DPO com pares boa/ruim, ou RL com recompensa verificável), e a reserva continua decidindo se uma versão vai para produção.
+
 ## Tratamento de dados e suposições
 
 Os dados originais ficam intocados em `data/raw/`. Os problemas que encontrei, e como tratei cada um:
@@ -260,13 +287,13 @@ Por isso o padrão é **7B livre**, e o próximo passo é a combinação das dua
 - **Perguntas de refinamento:** às vezes o modelo filtra a lista que já mostrou em vez de buscar de novo. No exemplo 01, ele sugeriu 2 violões de nylon quando havia 4 até R$ 1.000.
 - **Busca por palavras-chave:** não entende sinônimos ("violão de aço" acha, "violão de cordas metálicas" não) nem pedidos vagos como "algo bom pra rock".
 - **Sem horário em tempo real:** o agente informa o horário de funcionamento, mas não sabe se a loja está aberta agora.
-- **Sem avaliação sistemática:** os exemplos foram revisados à mão. Não há um conjunto de perguntas com respostas esperadas medido a cada mudança.
+- **Avaliação parcial:** a bateria automática cobre só o intérprete, com 38 casos. A redação final foi revisada à mão nos 5 roteiros.
 - **Interesse sem consentimento:** `registrar_interesse` guarda interesses sem pedir permissão. Para uso real, é preciso definir a base legal (LGPD) e permitir a exclusão.
 
 ## O que eu faria com mais tempo
 
-1. **Intérprete pequeno + redator maior:** o 1.5B no modo restrito para entender a mensagem (rápido e acertou 10/10), e o 7B ou um modelo via API só para redigir. Para os casos críticos (prazos de troca, status de pedido), resposta por template preenchido pelo código, sem redação livre.
-2. **Avaliação automatizada:** um conjunto de 30 a 50 perguntas com a ferramenta e os valores esperados, rodando a cada mudança no prompt ou no modelo.
+1. **Ampliar a bateria:** de 38 para 300 a 500 casos (gírias, erros de digitação, vários assuntos por mensagem), com reserva nova a cada ciclo de mudanças, e estender a nota ao redator (validador + consistência com a `CONCLUSÃO` das ferramentas + modelo maior como juiz do tom).
+2. **Intérprete pequeno + redator maior:** o 1.5B no modo restrito para entender a mensagem (rápido e acertou 10/10), e o 7B ou um modelo via API só para redigir. Para os casos críticos (prazos de troca, status de pedido), resposta por template preenchido pelo código, sem redação livre.
 3. **Integração com o WhatsApp Business API:** um webhook FastAPI chamando o mesmo `Agent.reply()`.
 4. **Dashboard para o dono:** Streamlit sobre `customer_interests`, `complaints` e o relatório de alertas, mostrando a inclinação de cada cliente por categoria.
 5. **Campanhas com opt-in:**
