@@ -1,0 +1,419 @@
+[
+ {
+  "id": "prod-01",
+  "grupo": "produto",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos"
+   ],
+   "termo": "Takamine GD20"
+  },
+  "segundos": 2.2
+ },
+ {
+  "id": "prod-02",
+  "grupo": "produto",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos"
+   ],
+   "termo": "violão",
+   "categoria": "Violões",
+   "preco_max": 1000
+  },
+  "segundos": 5.0
+ },
+ {
+  "id": "prod-03",
+  "grupo": "produto",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos"
+   ],
+   "termo": "Yamaha C40"
+  },
+  "segundos": 3.5
+ },
+ {
+  "id": "prod-04",
+  "grupo": "produto",
+  "ok": false,
+  "problemas": [
+   "faltou intenção ['buscar_produtos']",
+   "intenção proibida ['acessorio']",
+   "categoria: esperado 'Ukuleles', veio None"
+  ],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "acessorio"
+   ],
+   "termo": "ukulele elétrica"
+  },
+  "segundos": 3.2
+ },
+ {
+  "id": "prod-05",
+  "grupo": "produto",
+  "ok": true,
+  "problemas": [],
+  "descartados": [
+   "preco_max"
+  ],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos"
+   ],
+   "termo": "Crafter HT-100",
+   "categoria": "Baterias e Percussão"
+  },
+  "segundos": 5.7
+ },
+ {
+  "id": "prod-06",
+  "grupo": "produto",
+  "ok": false,
+  "problemas": [
+   "preco_max: esperado 9000, veio None"
+  ],
+  "descartados": [
+   "preco_max"
+  ],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos"
+   ],
+   "categoria": "Baixos"
+  },
+  "segundos": 3.9
+ },
+ {
+  "id": "nrec-01",
+  "grupo": "nao_recusar",
+  "ok": false,
+  "problemas": [
+   "faltou intenção ['buscar_produtos']",
+   "intenção proibida ['acessorio']"
+  ],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "acessorio"
+   ],
+   "termo": "violão",
+   "categoria": "Violões"
+  },
+  "segundos": 3.5
+ },
+ {
+  "id": "nrec-02",
+  "grupo": "nao_recusar",
+  "ok": false,
+  "problemas": [
+   "faltou intenção ['buscar_produtos']",
+   "intenção proibida ['acessorio']",
+   "categoria: esperado 'Baterias e Percussão', veio None"
+  ],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "acessorio"
+   ],
+   "termo": "bateria eletrônica"
+  },
+  "segundos": 2.9
+ },
+ {
+  "id": "nrec-03",
+  "grupo": "nao_recusar",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_politica"
+   ],
+   "topico": "loja"
+  },
+  "segundos": 2.7
+ },
+ {
+  "id": "ped-01",
+  "grupo": "pedido",
+  "ok": true,
+  "problemas": [],
+  "descartados": [
+   "numero_pedido"
+  ],
+  "saida": {
+   "intencoes": [
+    "consultar_pedido"
+   ]
+  },
+  "segundos": 2.7
+ },
+ {
+  "id": "ped-02",
+  "grupo": "pedido",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_pedido"
+   ],
+   "numero_pedido": 12,
+   "email_ou_telefone": "patricia.cardoso@jmail.com",
+   "topico": "trocas_devolucoes"
+  },
+  "segundos": 6.3
+ },
+ {
+  "id": "ped-03",
+  "grupo": "pedido",
+  "ok": true,
+  "problemas": [],
+  "descartados": [
+   "email_ou_telefone",
+   "numero_pedido"
+  ],
+  "saida": {
+   "intencoes": [
+    "consultar_pedido",
+    "consultar_politica"
+   ],
+   "topico": "trocas_devolucoes"
+  },
+  "segundos": 5.9
+ },
+ {
+  "id": "ped-04",
+  "grupo": "pedido",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_pedido",
+    "consultar_politica"
+   ],
+   "numero_pedido": 7,
+   "email_ou_telefone": "leticia.rocha@jmail.com",
+   "topico": "trocas_devolucoes"
+  },
+  "segundos": 7.2
+ },
+ {
+  "id": "pol-01",
+  "grupo": "politica",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_politica"
+   ],
+   "topico": "pagamento"
+  },
+  "segundos": 3.0
+ },
+ {
+  "id": "pol-02",
+  "grupo": "politica",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_politica"
+   ],
+   "topico": "frete_entrega"
+  },
+  "segundos": 3.3
+ },
+ {
+  "id": "pol-03",
+  "grupo": "politica",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_politica"
+   ],
+   "topico": "garantia"
+  },
+  "segundos": 2.8
+ },
+ {
+  "id": "pol-04",
+  "grupo": "politica",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_politica"
+   ],
+   "topico": "trocas_devolucoes"
+  },
+  "segundos": 3.2
+ },
+ {
+  "id": "pol-05",
+  "grupo": "politica",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "consultar_politica"
+   ],
+   "topico": "loja"
+  },
+  "segundos": 2.7
+ },
+ {
+  "id": "ace-01",
+  "grupo": "acessorio",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "acessorio"
+   ],
+   "termo": "palheta"
+  },
+  "segundos": 2.7
+ },
+ {
+  "id": "ace-02",
+  "grupo": "acessorio",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "acessorio"
+   ],
+   "termo": "amplificador"
+  },
+  "segundos": 2.7
+ },
+ {
+  "id": "fora-01",
+  "grupo": "fora_de_escopo",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "fora_de_escopo"
+   ]
+  },
+  "segundos": 2.2
+ },
+ {
+  "id": "fora-02",
+  "grupo": "fora_de_escopo",
+  "ok": false,
+  "problemas": [
+   "faltou intenção ['fora_de_escopo']"
+  ],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "acessorio"
+   ]
+  },
+  "segundos": 1.9
+ },
+ {
+  "id": "fora-03",
+  "grupo": "fora_de_escopo",
+  "ok": false,
+  "problemas": [
+   "faltou intenção ['fora_de_escopo']",
+   "intenção proibida ['buscar_produtos']"
+  ],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos"
+   ],
+   "termo": "lista"
+  },
+  "segundos": 3.0
+ },
+ {
+  "id": "conv-01",
+  "grupo": "conversa",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "conversa"
+   ]
+  },
+  "segundos": 1.8
+ },
+ {
+  "id": "conv-02",
+  "grupo": "conversa",
+  "ok": false,
+  "problemas": [
+   "faltou intenção ['conversa']"
+  ],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "acessorio"
+   ]
+  },
+  "segundos": 2.0
+ },
+ {
+  "id": "rec-01",
+  "grupo": "reclamacao",
+  "ok": true,
+  "problemas": [],
+  "descartados": [],
+  "saida": {
+   "intencoes": [
+    "registrar_reclamacao"
+   ],
+   "termo": "reclamação"
+  },
+  "segundos": 3.3
+ },
+ {
+  "id": "multi-01",
+  "grupo": "multiplo",
+  "ok": false,
+  "problemas": [
+   "faltou intenção ['consultar_politica']",
+   "topico: esperado 'pagamento', veio None"
+  ],
+  "descartados": [
+   "preco_max"
+  ],
+  "saida": {
+   "intencoes": [
+    "buscar_produtos"
+   ],
+   "termo": "Yamaha F310"
+  },
+  "segundos": 4.4
+ }
+]

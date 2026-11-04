@@ -44,7 +44,7 @@ Data de hoje: {today}.
 
 # Lembretes curtos injetados quando a mensagem tem um gatilho conhecido. Modelos pequenos
 # esquecem regras do meio do prompt; repetir a regra na hora certa resolve a maior parte.
-ACCESSORIES = ("corda de", "cordas de", "cordas pra", "cordas para", "jogo de corda", "encordoamento",
+ACCESSORIES = ("corda de", "cordas de", "cordas pra", "cordas para", "jogo de corda", "jogo de cordas", "cordas pro", "encordoamento",
                "palheta", "cabo", "case", "bag", "capa", "pedal", "pedaleira", "amplificador", "amp",
                "caixa de som", "suporte", "estante", "baqueta", "metronomo", "afinador avulso")
 ORDER_WORDS = ("pedido", "compra", "entrega", "chegou", "chegar", "rastreio", "rastreamento", "encomenda")

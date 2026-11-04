@@ -8,13 +8,17 @@ número de pedido, contato ou valor que não estão no texto do cliente são des
 import json
 import re
 
-from .rules import normalize
+from .prompts import ACCESSORIES, _mentions
+from .rules import normalize, tokens
 
 # Intenções que não são ferramentas: o código responde sem consultar nada.
 SPECIAL_INTENTS = {
-    "acessorio": "pede acessório (cordas, palhetas, cabos, cases, pedais, amplificadores)",
-    "fora_de_escopo": "assunto sem relação com a loja ou com instrumentos (receitas, política, programação...)",
-    "conversa": "só saudação, agradecimento ou despedida",
+    "acessorio": ("pede um ACESSÓRIO avulso: jogo de cordas, palheta, cabo, case, pedal, amplificador. "
+                  "Instrumento NÃO é acessório, mesmo elétrico ou de 7 cordas (violão, guitarra, baixo, "
+                  "ukulele, bateria, teclado)"),
+    "fora_de_escopo": ("assunto sem relação com a loja ou com instrumentos: receitas, futebol, política, "
+                       "programação, piadas, dever de casa"),
+    "conversa": "só saudação, agradecimento ou despedida, sem pergunta",
 }
 # Registrar interesse é automático no modo restrito: não depende do modelo lembrar.
 AUTOMATIC_TOOLS = {"registrar_interesse"}
@@ -26,9 +30,30 @@ EXAMPLES = """Exemplos:
 "posso parcelar em 10x?" -> {"intencoes": ["consultar_politica"], "topico": "pagamento"}
 "quero devolver o pedido 12, email ana@x.com" -> {"intencoes": ["consultar_pedido", "consultar_politica"], "numero_pedido": 12, "email_ou_telefone": "ana@x.com", "topico": "trocas_devolucoes"}
 "cadê meu pedido?" -> {"intencoes": ["consultar_pedido"]}
+"tem o Kala KA-15S? e qual o prazo de entrega?" -> {"intencoes": ["buscar_produtos", "consultar_politica"], "termo": "Kala KA-15S", "topico": "frete_entrega"}
+"baixo de 5 cordas, tem?" -> {"intencoes": ["buscar_produtos"], "categoria": "Baixos"}
+"guitarra até 8 mil" -> {"intencoes": ["buscar_produtos"], "categoria": "Guitarras", "preco_max": 8000}
 "vocês têm palheta?" -> {"intencoes": ["acessorio"]}
 "me conta uma piada" -> {"intencoes": ["fora_de_escopo"]}
-"oi, bom dia!" -> {"intencoes": ["conversa"]}"""
+"me ajuda com meu trabalho de matemática?" -> {"intencoes": ["fora_de_escopo"]}
+"oi, bom dia!" -> {"intencoes": ["conversa"]}
+"muito obrigada, era isso!" -> {"intencoes": ["conversa"]}"""
+
+
+def _to_number(raw: str) -> float:
+    """"1.500" e "2.199,90" no formato brasileiro; "799.90" com ponto decimal."""
+    if "," in raw:
+        return float(raw.replace(".", "").replace(",", "."))
+    parts = raw.split(".")
+    if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+        return float(raw.replace(".", ""))
+    return float(raw)
+
+
+def numbers_in(text: str) -> list[float]:
+    """Números do texto, entendendo "9 mil", "1.500" e "R$1000"."""
+    return [_to_number(raw) * (1000 if thousand else 1)
+            for raw, thousand in re.findall(r"(\d+(?:[.,]\d+)*)\s*(mil\b|k\b)?", text)]
 
 
 class Interpreter:
@@ -75,7 +100,7 @@ class Interpreter:
         if number is not None and str(number) not in digits_said:
             data.pop("numero_pedido")
         price = data.get("preco_max")
-        if price is not None and not any(abs(float(d) - float(price)) < 1 for d in digits_said):
+        if price is not None and not any(abs(n - float(price)) < 1 for n in numbers_in(said)):
             data.pop("preco_max")
         contact = data.get("email_ou_telefone")
         if contact:
@@ -83,8 +108,24 @@ class Interpreter:
             in_text = normalize(contact) in said or (len(contact_digits) >= 8 and contact_digits in "".join(digits_said))
             if not in_text:
                 data.pop("email_ou_telefone")
-        data["intencoes"] = list(dict.fromkeys(data.get("intencoes") or ["conversa"]))
+        intents = list(dict.fromkeys(data.get("intencoes") or ["conversa"]))
+        # "acessorio" só vale se a mensagem atual cita um acessório; o modelo pequeno o usa como coringa.
+        current = normalize(user_texts[-1]) if user_texts else ""
+        if "acessorio" in intents and not _mentions(current, ACCESSORIES):
+            intents.remove("acessorio")
+            category = self._category_in(current)
+            if category and "buscar_produtos" not in intents:
+                intents.append("buscar_produtos")
+                data.setdefault("categoria", category)
+        data["intencoes"] = intents or ["conversa"]
         return data
+
+    def _category_in(self, text: str) -> str | None:
+        words = set(tokens(text))
+        for name in self.fields.get("categoria", {}).get("enum", []):
+            if words & set(tokens(name)):
+                return name
+        return None
 
     def calls(self, data: dict) -> list[tuple[str, dict]]:
         """Uma chamada por intenção que é ferramenta, com os campos que ela aceita."""

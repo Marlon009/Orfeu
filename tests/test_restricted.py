@@ -75,3 +75,19 @@ def test_grounded_order_lookup():
     answer = agent.reply("É o pedido 7, meu e-mail é leticia.rocha@jmail.com")
     assert calls[0] == ("consultar_pedido", {"numero_pedido": 7, "email_ou_telefone": "leticia.rocha@jmail.com"})
     assert "validador" not in agent.last_stats and "18/05/2026" in answer
+
+
+def test_ungrounded_accessory_becomes_product_search():
+    agent, *_ = agent_with()
+    data = agent.interpreter.ground('{"intencoes": ["acessorio"]}', ["Vocês têm violão de 7 cordas?"])
+    assert data["intencoes"] == ["buscar_produtos"] and data["categoria"] == "Violões"
+    data = agent.interpreter.ground('{"intencoes": ["acessorio"]}', ["tem jogo de cordas pro violão?"])
+    assert data["intencoes"] == ["acessorio"]
+
+
+def test_price_in_thousands_is_grounded():
+    from emporio.interpreter import numbers_in
+    agent, *_ = agent_with()
+    data = agent.interpreter.ground('{"intencoes": ["buscar_produtos"], "preco_max": 9000}', ["baixo até 9 mil reais"])
+    assert data["preco_max"] == 9000
+    assert numbers_in("R$ 1.500 ou 2.199,90 ou 799.90") == [1500, 2199.9, 799.9]
