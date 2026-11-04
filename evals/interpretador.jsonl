@@ -1,0 +1,38 @@
+{"id": "prod-01", "split": "dev", "grupo": "produto", "mensagem": "Quanto custa o Takamine GD20?", "intencoes": ["buscar_produtos"], "campos": {"termo": "Takamine GD20"}}
+{"id": "prod-02", "split": "dev", "grupo": "produto", "mensagem": "Quais violões vocês têm até R$1000?", "intencoes": ["buscar_produtos"], "campos": {"categoria": "Violões", "preco_max": 1000}}
+{"id": "prod-03", "split": "dev", "grupo": "produto", "mensagem": "quanto ta o yamaha c40", "intencoes": ["buscar_produtos"], "campos": {"termo": "yamaha c40"}}
+{"id": "prod-04", "split": "dev", "grupo": "produto", "mensagem": "Tem ukulele elétrico?", "intencoes": ["buscar_produtos"], "campos": {"categoria": "Ukuleles"}}
+{"id": "prod-05", "split": "dev", "grupo": "produto", "mensagem": "O Crafter HT-100 está na promoção?", "intencoes": ["buscar_produtos"], "campos": {"termo": "Crafter HT-100"}}
+{"id": "prod-06", "split": "dev", "grupo": "produto", "mensagem": "Quero um baixo de até 9 mil reais", "intencoes": ["buscar_produtos"], "campos": {"categoria": "Baixos", "preco_max": 9000}}
+{"id": "prod-07", "split": "holdout", "grupo": "produto", "mensagem": "vcs tem guitarra fender?", "intencoes": ["buscar_produtos"], "campos": {"termo": "fender"}}
+{"id": "prod-08", "split": "holdout", "grupo": "produto", "mensagem": "Teclado bom e barato, tem algum?", "intencoes": ["buscar_produtos"], "campos": {"categoria": "Teclados e Pianos"}}
+{"id": "nrec-01", "split": "dev", "grupo": "nao_recusar", "mensagem": "Vocês têm violão de 7 cordas?", "intencoes": ["buscar_produtos"], "campos": {"categoria": "Violões"}}
+{"id": "nrec-02", "split": "dev", "grupo": "nao_recusar", "mensagem": "Tem bateria eletrônica pra vender?", "intencoes": ["buscar_produtos"], "campos": {"categoria": "Baterias e Percussão"}}
+{"id": "nrec-03", "split": "dev", "grupo": "nao_recusar", "mensagem": "A loja abre em feriado?", "intencoes": ["consultar_politica"], "campos": {"topico": "loja"}}
+{"id": "nrec-04", "split": "holdout", "grupo": "nao_recusar", "mensagem": "Quero começar a tocar, qual ukulele vocês recomendam pra iniciante?", "intencoes": ["buscar_produtos"], "campos": {"categoria": "Ukuleles"}}
+{"id": "ped-01", "split": "dev", "grupo": "pedido", "mensagem": "Cadê meu pedido?", "intencoes": ["consultar_pedido"], "sem_campos": ["numero_pedido", "email_ou_telefone"]}
+{"id": "ped-02", "split": "dev", "grupo": "pedido", "mensagem": "Quero saber do pedido 12, meu email é patricia.cardoso@jmail.com", "intencoes": ["consultar_pedido"], "campos": {"numero_pedido": 12, "email_ou_telefone": "patricia.cardoso@jmail.com"}}
+{"id": "ped-03", "split": "dev", "grupo": "pedido", "mensagem": "Me arrependi da compra, quero devolver", "intencoes": ["consultar_pedido"], "sem_campos": ["numero_pedido", "email_ou_telefone"]}
+{"id": "ped-04", "split": "dev", "grupo": "pedido", "mensagem": "meu email é leticia.rocha@jmail.com", "contexto": ["Quero ver o status do pedido 7"], "intencoes": ["consultar_pedido"], "campos": {"numero_pedido": 7, "email_ou_telefone": "leticia.rocha@jmail.com"}}
+{"id": "ped-05", "split": "holdout", "grupo": "pedido", "mensagem": "Qual o rastreio do pedido 8? Meu telefone é (67) 99654-7821", "intencoes": ["consultar_pedido"], "campos": {"numero_pedido": 8, "email_ou_telefone": "(67) 99654-7821"}}
+{"id": "ped-06", "split": "holdout", "grupo": "pedido", "mensagem": "Meu pedido ainda não chegou e já passou do prazo", "intencoes": ["consultar_pedido"], "sem_campos": ["numero_pedido"]}
+{"id": "pol-01", "split": "dev", "grupo": "politica", "mensagem": "Posso parcelar em 10x no cartão?", "intencoes": ["consultar_politica"], "campos": {"topico": "pagamento"}}
+{"id": "pol-02", "split": "dev", "grupo": "politica", "mensagem": "Vocês entregam em Dourados? Quanto tempo demora?", "intencoes": ["consultar_politica"], "campos": {"topico": "frete_entrega"}}
+{"id": "pol-03", "split": "dev", "grupo": "politica", "mensagem": "Qual a garantia dos instrumentos?", "intencoes": ["consultar_politica"], "campos": {"topico": "garantia"}}
+{"id": "pol-04", "split": "dev", "grupo": "politica", "mensagem": "Posso trocar a cor do violão que comprei?", "intencoes": ["consultar_politica"], "campos": {"topico": "trocas_devolucoes"}}
+{"id": "pol-05", "split": "dev", "grupo": "politica", "mensagem": "Qual o endereço de vocês?", "intencoes": ["consultar_politica"], "campos": {"topico": "loja"}}
+{"id": "pol-06", "split": "holdout", "grupo": "politica", "mensagem": "Quero que apaguem meus dados do cadastro", "intencoes": ["consultar_politica"], "campos": {"topico": "privacidade"}}
+{"id": "pol-07", "split": "holdout", "grupo": "politica", "mensagem": "Quando vai ter Black Friday?", "intencoes": ["consultar_politica"], "campos": {"topico": "promocoes"}}
+{"id": "ace-01", "split": "dev", "grupo": "acessorio", "mensagem": "Vocês vendem palheta?", "intencoes": ["acessorio"]}
+{"id": "ace-02", "split": "dev", "grupo": "acessorio", "mensagem": "Preciso de um amplificador pra minha guitarra", "intencoes": ["acessorio"]}
+{"id": "ace-03", "split": "holdout", "grupo": "acessorio", "mensagem": "tem cabo p10?", "intencoes": ["acessorio"]}
+{"id": "fora-01", "split": "dev", "grupo": "fora_de_escopo", "mensagem": "Me passa uma receita de bolo de cenoura?", "intencoes": ["fora_de_escopo"]}
+{"id": "fora-02", "split": "dev", "grupo": "fora_de_escopo", "mensagem": "Quem vai ganhar o jogo do Flamengo hoje?", "intencoes": ["fora_de_escopo"]}
+{"id": "fora-03", "split": "dev", "grupo": "fora_de_escopo", "mensagem": "Escreve um código em Python que ordena uma lista", "intencoes": ["fora_de_escopo"]}
+{"id": "fora-04", "split": "holdout", "grupo": "fora_de_escopo", "mensagem": "Em quem devo votar na próxima eleição?", "intencoes": ["fora_de_escopo"]}
+{"id": "conv-01", "split": "dev", "grupo": "conversa", "mensagem": "Oi, bom dia!", "intencoes": ["conversa"]}
+{"id": "conv-02", "split": "dev", "grupo": "conversa", "mensagem": "Valeu, obrigado pela ajuda!", "intencoes": ["conversa"]}
+{"id": "rec-01", "split": "dev", "grupo": "reclamacao", "mensagem": "Péssimo atendimento, quero fazer uma reclamação", "intencoes": ["registrar_reclamacao"]}
+{"id": "rec-02", "split": "holdout", "grupo": "reclamacao", "mensagem": "Meu violão chegou com o tampo rachado e ninguém me responde!", "intencoes": ["registrar_reclamacao"]}
+{"id": "multi-01", "split": "dev", "grupo": "multiplo", "mensagem": "Quanto custa o Yamaha F310 e dá pra parcelar?", "intencoes": ["buscar_produtos", "consultar_politica"], "campos": {"termo": "Yamaha F310", "topico": "pagamento"}}
+{"id": "multi-02", "split": "holdout", "grupo": "multiplo", "mensagem": "Tem ukulele soprano? E vocês entregam em Corumbá?", "intencoes": ["buscar_produtos", "consultar_politica"], "campos": {"topico": "frete_entrega"}}
