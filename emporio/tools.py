@@ -260,7 +260,8 @@ def tool_specs(conn: sqlite3.Connection) -> list[dict]:
             "email_ou_telefone": {"type": "string"}}),
         fn("consultar_politica",
            "Consulta o manual da loja. Tópicos: loja (endereço, contato e HORÁRIO), pagamento (formas e parcelamento), "
-           "trocas_devolucoes, frete_entrega, promocoes (regras gerais), garantia, privacidade.",
+           "trocas_devolucoes (devolver, trocar, arrependimento), frete_entrega (entrega, frete, prazo de entrega, "
+           "envio para outras cidades), promocoes (campanhas e regras gerais), garantia, privacidade (dados pessoais).",
            {"topico": {"type": "string", "enum": policy_topics()}}, ["topico"]),
         fn("registrar_interesse",
            "Registra em silêncio o interesse do cliente em um tipo de instrumento, para a equipe de vendas.",

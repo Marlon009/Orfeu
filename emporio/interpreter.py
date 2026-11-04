@@ -108,15 +108,36 @@ class Interpreter:
             in_text = normalize(contact) in said or (len(contact_digits) >= 8 and contact_digits in "".join(digits_said))
             if not in_text:
                 data.pop("email_ou_telefone")
+        # Termo e categoria também precisam ter base no que o cliente escreveu.
+        said_words = set(tokens(said))
+        if data.get("termo") and not set(tokens(data["termo"])) & said_words:
+            data.pop("termo")
+        if data.get("categoria") and not set(tokens(data["categoria"])) & said_words:
+            data.pop("categoria")
+
         intents = list(dict.fromkeys(data.get("intencoes") or ["conversa"]))
-        # "acessorio" só vale se a mensagem atual cita um acessório; o modelo pequeno o usa como coringa.
         current = normalize(user_texts[-1]) if user_texts else ""
-        if "acessorio" in intents and not _mentions(current, ACCESSORIES):
+        category = self._category_in(current)
+        if _mentions(current, ACCESSORIES):
+            if "acessorio" not in intents:
+                intents.append("acessorio")
+            # Uma busca cujo termo é o próprio acessório não tem o que achar no catálogo.
+            if "buscar_produtos" in intents and _mentions(normalize(data.get("termo", "")), ACCESSORIES):
+                intents.remove("buscar_produtos")
+        elif "acessorio" in intents:
+            # O modelo pequeno usa "acessorio" como coringa; sem acessório no texto, não vale.
             intents.remove("acessorio")
-            category = self._category_in(current)
             if category and "buscar_produtos" not in intents:
                 intents.append("buscar_produtos")
-                data.setdefault("categoria", category)
+
+        if "buscar_produtos" in intents:
+            if category and not data.get("categoria"):
+                data["categoria"] = category
+            if not any(data.get(k) for k in ("termo", "categoria", "preco_max")):
+                # Busca sem nenhum critério com base no texto: o modelo inventou o assunto.
+                intents.remove("buscar_produtos")
+                if not intents:
+                    intents = ["fora_de_escopo"]
         data["intencoes"] = intents or ["conversa"]
         return data
 

@@ -91,3 +91,23 @@ def test_price_in_thousands_is_grounded():
     data = agent.interpreter.ground('{"intencoes": ["buscar_produtos"], "preco_max": 9000}', ["baixo até 9 mil reais"])
     assert data["preco_max"] == 9000
     assert numbers_in("R$ 1.500 ou 2.199,90 ou 799.90") == [1500, 2199.9, 799.9]
+
+
+def test_search_without_grounded_criteria_is_off_topic():
+    agent, *_ = agent_with()
+    data = agent.interpreter.ground('{"intencoes": ["buscar_produtos"], "termo": "guitarra", "categoria": "Guitarras"}',
+                                    ["Escreve um código em Python que ordena uma lista"])
+    assert data["intencoes"] == ["fora_de_escopo"] and "termo" not in data
+
+
+def test_accessory_search_becomes_accessory():
+    agent, *_ = agent_with()
+    data = agent.interpreter.ground('{"intencoes": ["buscar_produtos"], "termo": "amplificador"}',
+                                    ["Preciso de um amplificador pra minha guitarra"])
+    assert data["intencoes"] == ["acessorio"]
+
+
+def test_category_filled_from_text():
+    agent, *_ = agent_with()
+    data = agent.interpreter.ground('{"intencoes": ["buscar_produtos"], "termo": "ukulele elétrico"}', ["Tem ukulele elétrico?"])
+    assert data["categoria"] == "Ukuleles"
