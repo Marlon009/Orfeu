@@ -23,8 +23,9 @@ pip install -r requirements.txt
 # 3. Banco (opcional: é criado sozinho na primeira execução)
 python -m emporio.db
 
-# 4. Conversar
-python -m emporio.cli                                  # cliente anônimo
+# 4. Conversar (três interfaces, mesmo agente)
+python -m emporio.web                                  # web: http://127.0.0.1:8000 (+ webhook do WhatsApp)
+python -m emporio.cli                                  # terminal, cliente anônimo
 python -m emporio.cli --telefone "(67) 99654-7821"     # simula mensagem vinda do WhatsApp de uma cliente cadastrada
 python -m emporio.cli --debug                          # mostra as ferramentas chamadas e o tempo de cada resposta
 python -m emporio.cli --modo restrito                  # modo para modelos pequenos (ver "Dois modos de execução")
@@ -47,6 +48,9 @@ Configuração por variáveis de ambiente (todas opcionais):
 | `EMPORIO_MODE` | `livre` | `livre` (function calling) ou `restrito` (formulário JSON validado); ver "Dois modos de execução" |
 | `EMPORIO_TODAY` | `2026-03-25` | data de referência para os prazos (ver Suposições) |
 | `LOW_STOCK_THRESHOLD` | `2` | limite do alerta de estoque baixo |
+| `HOST` / `PORT` | `127.0.0.1` / `8000` | endereço do servidor web |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` | vazios | credenciais do WhatsApp; vazias = modo simulado |
+| `PUBLIC_URL` | vazio | URL pública do webhook (ngrok), usada para validar a assinatura do Twilio |
 
 Para usar um modelo pago, por exemplo: `LLM_BASE_URL=https://api.openai.com/v1 LLM_API_KEY=sk-... LLM_MODEL=gpt-4o-mini python -m emporio.cli`.
 
@@ -85,11 +89,47 @@ emporio/
   agent.py     os dois modos, histórico e métricas por resposta
   cli.py       interface de terminal e modo roteiro
   alerts.py    relatório para o dono
+  web.py       servidor HTTP: página de chat, API JSON e webhook do WhatsApp
+  whatsapp.py  adaptador do Twilio: leitura, assinatura e envio (ou modo simulado)
+  static/      página de chat (HTML único, sem build)
 data/raw/      dados originais, sem alteração
 data/policies/ manual dividido por tópico
 examples/      conversas reais geradas pelo agente
 tests/         testes das regras e ferramentas
 ```
+
+## Interfaces: terminal, web e WhatsApp
+
+Os três canais são adaptadores finos sobre o mesmo `Agent.reply()`. Canal novo não exige mudar o agente.
+
+| Canal | Como usar | Detalhes |
+|---|---|---|
+| **Terminal** | `python -m emporio.cli` | `--telefone` simula o remetente do WhatsApp; `--roteiro` roda conversas prontas |
+| **Web** | `python -m emporio.web` e abrir http://127.0.0.1:8000 | Chat com campo opcional de telefone e painel de **bastidores** (ferramentas chamadas, tempo, o que o validador barrou). API JSON em `POST /api/mensagem` |
+| **WhatsApp** | webhook `POST /webhook/whatsapp` no mesmo servidor | Formato do Twilio. Sem credenciais, roda em **modo simulado** |
+
+**Sessão única por telefone:** um cliente identificado tem a mesma sessão (`tel-<dígitos>`) nos três canais. Uma conversa começada no WhatsApp continua na web com o histórico. Números desconhecidos no WhatsApp ganham sessão própria (`wa-<dígitos>`), e o navegador anônimo ganha uma por aba (`web-<id>`).
+
+**Por que o WhatsApp responde em segundo plano:** o Twilio espera o webhook responder em até 15 s, e o agente leva de segundos a minutos no CPU. Então o webhook confirma o recebimento na hora (TwiML vazio), e a resposta sai depois pela API REST do Twilio, dividida em partes se passar de 1.500 caracteres.
+
+**Modo simulado:** sem `TWILIO_*` configurado, nada é enviado. As respostas ficam na tabela `outbound_messages` e aparecem em `GET /api/whatsapp/saida`, o que permite testar o fluxo inteiro sem conta:
+
+```bash
+curl -X POST http://127.0.0.1:8000/webhook/whatsapp -d 'From=whatsapp:+5567996547821&Body=Cadê meu pedido?'
+curl http://127.0.0.1:8000/api/whatsapp/saida     # resposta da Lia, status "simulado"
+```
+
+**Ligar a um número real (sandbox do Twilio):**
+1. Criar uma conta no Twilio e ativar o *WhatsApp Sandbox*.
+2. Expor o servidor: `ngrok http 8000`.
+3. No sandbox, apontar "When a message comes in" para `https://<seu-ngrok>/webhook/whatsapp`.
+4. Rodar com as credenciais:
+   ```bash
+   TWILIO_ACCOUNT_SID=AC... TWILIO_AUTH_TOKEN=... TWILIO_WHATSAPP_FROM=whatsapp:+14155238886 \
+   PUBLIC_URL=https://<seu-ngrok> python -m emporio.web
+   ```
+
+Com `TWILIO_AUTH_TOKEN` definido, toda requisição precisa da assinatura `X-Twilio-Signature` válida, ou recebe 403. `PUBLIC_URL` existe porque o Twilio assina a URL pública, não a local. A caixa de saída de demonstração (`/api/whatsapp/saida`) é desligada quando há credenciais reais.
 
 ## Decisões técnicas
 
@@ -294,7 +334,7 @@ Por isso o padrão é **7B livre**, e o próximo passo é a combinação das dua
 
 1. **Ampliar a bateria:** de 38 para 300 a 500 casos (gírias, erros de digitação, vários assuntos por mensagem), com reserva nova a cada ciclo de mudanças, e estender a nota ao redator (validador + consistência com a `CONCLUSÃO` das ferramentas + modelo maior como juiz do tom).
 2. **Intérprete pequeno + redator maior:** o 1.5B no modo restrito para entender a mensagem (rápido e acertou 10/10), e o 7B ou um modelo via API só para redigir. Para os casos críticos (prazos de troca, status de pedido), resposta por template preenchido pelo código, sem redação livre.
-3. **Integração com o WhatsApp Business API:** um webhook FastAPI chamando o mesmo `Agent.reply()`.
+3. **WhatsApp em produção:** o webhook já existe (Twilio); faltam fila de mensagens (para não perder respostas se o servidor reiniciar no meio), o canal oficial da Meta para volume maior e as mensagens de template exigidas fora da janela de 24 h.
 4. **Dashboard para o dono:** Streamlit sobre `customer_interests`, `complaints` e o relatório de alertas, mostrando a inclinação de cada cliente por categoria.
 5. **Campanhas com opt-in:**
    - coluna de consentimento por cliente;

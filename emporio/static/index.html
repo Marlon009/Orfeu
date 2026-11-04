@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lia — Empório da Música</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #fffdf8; --ink: #1f2a33; --muted: #6b7680; --line: #e4ddd0;
+    --brand: #1a5276; --accent: #e8a33d; --me: #1a5276; --me-ink: #fff; --her: #ffffff;
+    --warn-bg: #fff4e0; --warn-ink: #8a5a00; --chip: #eef3f7;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12171c; --panel: #1a2128; --ink: #e6ebef; --muted: #93a0ab; --line: #2a333c;
+      --brand: #5dade2; --accent: #f0b65a; --me: #2e6f99; --me-ink: #fff; --her: #222b33;
+      --warn-bg: #3a2e17; --warn-ink: #f3cf8c; --chip: #24303a;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); }
+  .app { max-width: 760px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column;
+         padding: 0 16px; }
+  header { padding: 20px 0 12px; border-bottom: 2px solid var(--accent); }
+  header h1 { margin: 0; font-size: 1.3rem; color: var(--brand); }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+  .id { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 0;
+        font-size: .85rem; color: var(--muted); }
+  .id input { flex: 1 1 180px; min-width: 0; padding: 6px 10px; border: 1px solid var(--line);
+              border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
+  .id label.toggle { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  #who { font-weight: 600; color: var(--brand); }
+  #log { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 8px 0 16px; }
+  .msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap;
+         overflow-wrap: anywhere; box-shadow: 0 1px 0 rgba(0,0,0,.05); }
+  .me { align-self: flex-end; background: var(--me); color: var(--me-ink); border-bottom-right-radius: 4px; }
+  .her { align-self: flex-start; background: var(--her); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; font-size: .75rem; color: var(--muted); }
+  .chip { background: var(--chip); padding: 2px 8px; border-radius: 999px; font-family: ui-monospace, monospace; }
+  .warn { background: var(--warn-bg); color: var(--warn-ink); padding: 2px 8px; border-radius: 999px; }
+  body:not(.backstage) .meta { display: none; }
+  .typing { align-self: flex-start; color: var(--muted); font-size: .9rem; font-style: italic; }
+  .empty { color: var(--muted); text-align: center; margin: auto 0; font-size: .9rem; }
+  .empty button { margin: 4px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+                  background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; }
+  form { position: sticky; bottom: 0; display: flex; gap: 8px; padding: 12px 0 calc(16px + env(safe-area-inset-bottom, 0px));
+         background: var(--bg); border-top: 1px solid var(--line); }
+  form input { flex: 1; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px;
+               background: var(--panel); color: var(--ink); font: inherit; }
+  form button { padding: 0 18px; border: 0; border-radius: 12px; background: var(--brand); color: #fff;
+                font: inherit; font-weight: 600; cursor: pointer; }
+  form button:disabled { opacity: .5; cursor: wait; }
+</style>
+</head>
+<body class="backstage">
+<div class="app">
+  <header>
+    <h1>Lia · Empório da Música</h1>
+    <p>Atendimento virtual — instrumentos, pedidos, horários e trocas</p>
+  </header>
+
+  <div class="id">
+    <input id="phone" type="tel" placeholder="Telefone (opcional), ex.: (67) 99654-7821" autocomplete="off">
+    <span id="who">cliente não identificado</span>
+    <label class="toggle"><input id="backstage" type="checkbox" checked> bastidores</label>
+  </div>
+
+  <main id="log" aria-live="polite"></main>
+
+  <form id="form">
+    <input id="text" placeholder="Escreva sua mensagem…" autocomplete="off" required maxlength="2000">
+    <button id="send">Enviar</button>
+  </form>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+let session = store.get("lia-sessao");
+if (!session) { session = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())); store.set("lia-sessao", session); }
+$("phone").value = store.get("lia-telefone") || "";
+
+const EXAMPLES = ["Quais violões vocês têm até R$1000?", "Qual o horário de sábado?",
+                  "Me arrependi da compra, posso devolver?", "Vocês vendem cordas?"];
+
+function bubble(role, text, meta) {
+  $("log").querySelector(".empty")?.remove();
+  const el = document.createElement("div");
+  el.className = "msg " + (role === "user" ? "me" : "her");
+  el.textContent = text;
+  if (meta) {
+    const m = document.createElement("div");
+    m.className = "meta";
+    for (const t of meta.ferramentas || []) {
+      const args = Object.entries(t.args).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", ");
+      m.append(Object.assign(document.createElement("span"), { className: "chip", textContent: `🔧 ${t.nome}(${args})` }));
+    }
+    m.append(Object.assign(document.createElement("span"), { textContent: `${meta.segundos} s · modo ${meta.modo}` }));
+    if (meta.validador?.length)
+      m.append(Object.assign(document.createElement("span"), { className: "warn", textContent: "validador barrou: " + meta.validador.join(", ") }));
+    if (meta.resposta_segura)
+      m.append(Object.assign(document.createElement("span"), { className: "warn", textContent: "resposta segura" }));
+    el.append(m);
+  }
+  $("log").append(el);
+  el.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+function showEmpty() {
+  const box = Object.assign(document.createElement("div"), { className: "empty" });
+  box.append("Experimente perguntar:", document.createElement("br"));
+  for (const q of EXAMPLES) {
+    const b = Object.assign(document.createElement("button"), { type: "button", textContent: q });
+    b.onclick = () => { $("text").value = q; $("form").requestSubmit(); };
+    box.append(b);
+  }
+  $("log").append(box);
+}
+
+async function loadHistory() {
+  $("log").replaceChildren();
+  const params = new URLSearchParams({ sessao: session, telefone: $("phone").value });
+  try {
+    const data = await (await fetch("/api/historico?" + params)).json();
+    $("who").textContent = data.cliente || "cliente não identificado";
+    data.mensagens.forEach((m) => bubble(m.papel, m.texto));
+  } catch {}
+  if (!$("log").children.length) showEmpty();
+}
+
+$("phone").addEventListener("change", () => { store.set("lia-telefone", $("phone").value); loadHistory(); });
+$("backstage").addEventListener("change", (e) => document.body.classList.toggle("backstage", e.target.checked));
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const texto = $("text").value.trim();
+  if (!texto) return;
+  $("text").value = "";
+  $("send").disabled = true;
+  bubble("user", texto);
+  const typing = Object.assign(document.createElement("div"), { className: "typing" });
+  $("log").append(typing);
+  const start = Date.now();
+  const tick = setInterval(() => { typing.textContent = `Lia está digitando… ${Math.round((Date.now() - start) / 1000)} s`; }, 500);
+  try {
+    const res = await fetch("/api/mensagem", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto, sessao: session, telefone: $("phone").value }),
+    });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    $("who").textContent = data.cliente || "cliente não identificado";
+    bubble("assistant", data.resposta, data);
+  } catch (err) {
+    bubble("assistant", "Não consegui falar com o servidor agora (" + err.message + "). Tente de novo em instantes.");
+  } finally {
+    clearInterval(tick);
+    typing.remove();
+    $("send").disabled = false;
+    $("text").focus();
+  }
+});
+
+loadHistory();
+</script>
+</body>
+</html>

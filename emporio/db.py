@@ -22,8 +22,10 @@ CREATE TABLE orders (
     total_brl REAL, payment_method TEXT, tracking_code TEXT, estimated_delivery TEXT, notes TEXT
 );
 CREATE TABLE order_items (order_id INTEGER, product_id INTEGER, quantity INTEGER);
+"""
 
--- Tabelas operacionais geradas pelo agente
+# Tabelas operacionais geradas pelo agente; criadas a cada conexão para bancos antigos ganharem as novas.
+OPERATIONAL_SCHEMA = """
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, role TEXT, content TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -36,6 +38,10 @@ CREATE TABLE IF NOT EXISTS complaints (
     id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, session_id TEXT,
     order_id INTEGER, description TEXT, status TEXT DEFAULT 'aberta',
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS outbound_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, channel TEXT, recipient TEXT, body TEXT,
+    status TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 """
 
@@ -62,6 +68,7 @@ def connect() -> sqlite3.Connection:
         build()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.executescript(OPERATIONAL_SCHEMA)
     return conn
 
 
@@ -76,7 +83,7 @@ def build() -> None:
     conn = sqlite3.connect(DB_PATH)
     for table in CATALOG_TABLES:
         conn.execute(f"DROP TABLE IF EXISTS {table}")
-    conn.executescript(SCHEMA)
+    conn.executescript(SCHEMA + OPERATIONAL_SCHEMA)
 
     data = {t: _read(t) for t in CATALOG_TABLES}
     for row in data["products"]:
