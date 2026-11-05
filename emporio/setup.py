@@ -87,6 +87,56 @@ def _ask(prompt: str, default: str = "") -> str:
     return answer or default
 
 
+def select(title: str, options: list[str], default: int = 0) -> int:
+    """Menu com setas ↑/↓ e Enter; sem terminal interativo, cai para escolha por número."""
+    try:
+        import termios
+        import tty
+        interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    except ImportError:  # Windows
+        interactive = False
+    if not interactive:
+        for i, option in enumerate(options, 1):
+            print(f"  {i}) {option}")
+        answer = _ask(title, str(default + 1))
+        return int(answer) - 1 if answer.isdigit() and 1 <= int(answer) <= len(options) else default
+
+    index = default
+    print(f"{title}  (↑/↓ e Enter)")
+
+    def render(redraw: bool) -> None:
+        if redraw:
+            sys.stdout.write(f"\x1b[{len(options)}A")  # volta ao início da lista
+        for i, option in enumerate(options):
+            line = f"\x1b[1;36m❯ {option}\x1b[0m" if i == index else f"  {option}"
+            sys.stdout.write(f"\x1b[2K{line}\n")
+        sys.stdout.flush()
+
+    fd = sys.stdin.fileno()
+    saved = termios.tcgetattr(fd)
+    sys.stdout.write("\x1b[?25l")  # esconde o cursor
+    render(False)
+    try:
+        tty.setcbreak(fd)
+        while True:
+            key = sys.stdin.read(1)
+            if key in ("\n", "\r"):
+                break
+            if key == "\x1b" and sys.stdin.read(1) == "[":
+                arrow = sys.stdin.read(1)
+                index = (index - 1) % len(options) if arrow == "A" else (index + 1) % len(options) if arrow == "B" else index
+            elif key in "kj":  # atalhos estilo vim
+                index = (index - 1) % len(options) if key == "k" else (index + 1) % len(options)
+            elif key.isdigit() and 1 <= int(key) <= len(options):
+                index = int(key) - 1
+            render(True)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+        sys.stdout.write("\x1b[?25h")
+        sys.stdout.flush()
+    return index
+
+
 def _login() -> bool:
     if not OWNER_FILE.exists():
         print("Primeiro acesso: crie o login do dono da loja.")
@@ -126,38 +176,45 @@ def _change_password() -> None:
 def _ollama_models() -> list[str]:
     try:
         out = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=10).stdout
-        return [line.split()[0] for line in out.splitlines()[1:] if line.strip()]
+        names = [line.split()[0] for line in out.splitlines()[1:] if line.strip()]
+        return [n for n in names if "embed" not in n]  # modelos de embedding não conversam
     except (OSError, subprocess.SubprocessError):
         return []
 
 
 def _choose_ai(current: dict[str, str]) -> None:
     names = list(PROVIDERS)
-    for i, name in enumerate(names, 1):
-        print(f"  {i}) {LABELS[name]}")
-    default = str(names.index(current.get("LLM_PROVIDER", "ollama")) + 1)
-    provider = names[int(_ask("Qual IA a loja vai usar", default)) - 1]
+    provider = names[select("Qual IA a loja vai usar?", [LABELS[n] for n in names],
+                            names.index(current.get("LLM_PROVIDER", "ollama")))]
     previous_model = current.get("LLM_MODEL", "") if current.get("LLM_PROVIDER") == provider else ""
 
     api_key = None
     if provider == "ollama":
         models = _ollama_models()
+        wanted = previous_model or PROVIDERS[provider]["model"]
         if models:
-            print("Modelos baixados nesta máquina: " + ", ".join(models))
-        model = _ask("Modelo", previous_model or PROVIDERS[provider]["model"])
+            options = models + ["outro (digitar o nome)"]
+            choice = select("Qual modelo local?", options, models.index(wanted) if wanted in models else 0)
+            model = models[choice] if choice < len(models) else _ask("Nome do modelo (ex.: qwen2.5:7b)")
+        else:
+            print("Nenhum modelo encontrado no Ollama (`ollama pull <modelo>` baixa um).")
+            model = _ask("Modelo", wanted)
     else:
         key_env = PROVIDERS[provider]["key_env"]
         print(f"Chave atual: {mask(current.get(key_env, ''))}")
         api_key = getpass.getpass("Chave da API (Enter mantém a atual): ").strip() or None
         model = _ask("Modelo", previous_model or PROVIDERS[provider]["model"])
-    print("Modo: 'livre' para modelos maiores ou API; 'restrito' para modelos locais pequenos.")
-    mode = _ask("Modo", current.get("EMPORIO_MODE", "livre" if provider != "ollama" else "restrito"))
+    modes = ["livre", "restrito"]
+    suggested = current.get("EMPORIO_MODE") or ("livre" if provider != "ollama" else "restrito")
+    mode = modes[select("Qual modo?", ["livre: o modelo escolhe as ferramentas (modelos maiores ou API)",
+                                       "restrito: o código conduz e o modelo só preenche e redige (modelos pequenos)"],
+                        modes.index(suggested) if suggested in modes else 0)]
 
     save_settings(provider, model, api_key, mode)
     print(f"\nSalvo em {SETTINGS_FILE}. Verificando o que falta...\n")
     # Processo novo: lê a configuração recém-gravada.
     if subprocess.call([sys.executable, "-m", "emporio.providers"]) != 0:
-        if _ask("Instalar o que faltar agora? (s/n)", "s").lower().startswith("s"):
+        if select("Instalar o que faltar agora?", ["sim", "não"]) == 0:
             subprocess.call([sys.executable, "-m", "emporio.providers", "--instalar"])
 
 
@@ -170,12 +227,12 @@ def main() -> None:
         provider = current.get("LLM_PROVIDER", "ollama")
         print(f"IA atual: {LABELS[provider]} · modelo {current.get('LLM_MODEL') or PROVIDERS[provider]['model'] or '?'}"
               f" · modo {current.get('EMPORIO_MODE', 'livre')}")
-        choice = _ask("1) escolher a IA   2) verificar   3) trocar a senha   0) sair", "0")
-        if choice == "1":
+        choice = select("O que deseja fazer?", ["escolher a IA", "verificar a configuração", "trocar a senha", "sair"])
+        if choice == 0:
             _choose_ai(current)
-        elif choice == "2":
+        elif choice == 1:
             subprocess.call([sys.executable, "-m", "emporio.providers"])
-        elif choice == "3":
+        elif choice == 2:
             _change_password()
         else:
             return
