@@ -15,7 +15,7 @@ def prompt_hash() -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Lia, assistente virtual da Empório da Música")
+    parser = argparse.ArgumentParser(description="Orfeu, assistente virtual da Empório da Música")
     parser.add_argument("--telefone", help="número do cliente, como se a conversa viesse do WhatsApp")
     parser.add_argument("--debug", action="store_true", help="mostra as ferramentas chamadas")
     parser.add_argument("--roteiro", type=Path, help="arquivo com uma mensagem do cliente por linha")
@@ -62,8 +62,8 @@ def main() -> None:
             flags.append("validador barrou: " + ", ".join(stats["validador"]))
         if stats.get("resposta_segura"):
             flags.append("resposta segura")
-        transcript.append(f"\n**Lia:** {answer}\n\n<sub>{' · '.join(flags)}</sub>\n")
-        print(f"Lia: {answer}\n")
+        transcript.append(f"\n**Orfeu:** {answer}\n\n<sub>{' · '.join(flags)}</sub>\n")
+        print(f"Orfeu: {answer}\n")
         if args.debug:
             print(f"  [{' · '.join(flags)}]", file=sys.stderr)
 

@@ -1,11 +1,11 @@
-# Lia: agente de atendimento da Empório da Música
+# Orfeu: agente de atendimento da Empório da Música
 
-Protótipo de um agente de mensagens de texto para a Empório da Música, uma loja fictícia de instrumentos em Campo Grande/MS. A Lia responde sobre o catálogo (preço, promoção, estoque), sobre pedidos (status, rastreio, prazos de troca) e sobre as políticas da loja. Ela sempre consulta os dados por ferramentas e nunca responde de memória.
+Protótipo de um agente de mensagens de texto para a Empório da Música, uma loja fictícia de instrumentos em Campo Grande/MS. O Orfeu responde sobre o catálogo (preço, promoção, estoque), sobre pedidos (status, rastreio, prazos de troca) e sobre as políticas da loja. Ele sempre consulta os dados por ferramentas e nunca responde de memória.
 
 ```
 Você: Quanto custa o Takamine GD20?
   🔧 buscar_produtos(termo='Takamine GD20')
-Lia: O Takamine GD20 custa R$ 2.199,00. Com o pagamento à vista no PIX, você ganha um desconto de 5%, totalizando R$ 2.089,05. ...
+Orfeu: O Takamine GD20 custa R$ 2.199,00. Com o pagamento à vista no PIX, você ganha um desconto de 5%, totalizando R$ 2.089,05. ...
 ```
 
 ## Como rodar
@@ -116,7 +116,7 @@ Os três canais são adaptadores finos sobre o mesmo `Agent.reply()`. Canal novo
 
 ```bash
 curl -X POST http://127.0.0.1:8000/webhook/whatsapp -d 'From=whatsapp:+5567996547821&Body=Cadê meu pedido?'
-curl http://127.0.0.1:8000/api/whatsapp/saida     # resposta da Lia, status "simulado"
+curl http://127.0.0.1:8000/api/whatsapp/saida     # resposta do Orfeu, status "simulado"
 ```
 
 **Ligar a um número real (sandbox do Twilio):**
@@ -188,7 +188,7 @@ O padrão do intérprete foi adaptado de um projeto meu anterior (ver "Uso de as
 
 ### Estratégia de prompt
 O system prompt (`emporio/prompts.py`) tem três partes:
-- a persona, tirada da seção 7.1 do manual: informal mas profissional, "um amigo que entende de música";
+- a persona, tirada da seção 7.1 do manual: informal mas profissional, "um amigo que entende de música". O nome é **Orfeu**, o músico da mitologia que encantava com a lira e que, no Brasil, virou *Orfeu da Conceição*, de Vinicius de Moraes. Um nome musical e brasileiro para uma loja de instrumentos;
 - um guia de quando usar cada ferramenta;
 - 10 regras numeradas: não inventar dados, copiar valores sem calcular, mostrar promoção com preço original e percentual, verificar identidade, escopo só de instrumentos, recusar assuntos fora da loja.
 
@@ -207,7 +207,7 @@ Pelo mesmo motivo, o agente injeta **lembretes por palavra-chave** (`prompts.rem
 A checagem é por palavra inteira, para "acabou" não disparar "cabo".
 
 ### Identidade e privacidade (LGPD)
-- **Cliente que chega pelo WhatsApp:** o telefone identifica a pessoa, simulado com `--telefone`. A Lia cumprimenta pelo nome e pode consultar os pedidos dela.
+- **Cliente que chega pelo WhatsApp:** o telefone identifica a pessoa, simulado com `--telefone`. O Orfeu cumprimenta pelo nome e pode consultar os pedidos dela.
 - **Cliente anônimo:** precisa informar o número do pedido e o e-mail ou telefone do cadastro.
 - **Pedido inexistente e identidade errada recebem a mesma resposta**, para não confirmar que um pedido existe.
 

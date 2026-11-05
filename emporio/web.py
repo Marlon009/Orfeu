@@ -20,7 +20,7 @@ from .db import connect
 STATIC = Path(__file__).parent / "static"
 PUBLIC_URL = os.getenv("PUBLIC_URL", "")  # URL pública do webhook (ngrok), usada na assinatura do Twilio
 
-app = FastAPI(title="Lia — Empório da Música")
+app = FastAPI(title="Orfeu — Empório da Música")
 
 
 class Message(BaseModel):
