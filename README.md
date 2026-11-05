@@ -293,6 +293,8 @@ Os dados originais ficam intocados em `data/raw/`. Os problemas que encontrei, e
 
 Gerados pelo próprio agente a partir de `examples/roteiros/`, com `./examples/gerar.sh`. As linhas com 🔧 são as ferramentas chamadas; abaixo de cada resposta ficam o tempo e o que o validador barrou. O cabeçalho de cada arquivo registra o modelo, o modo, a temperatura e o hash do prompt.
 
+> **Nota:** as conversas foram geradas quando o assistente ainda se chamava **Lia**; o nome mudou para Orfeu depois, já no fim do prazo, e não houve tempo de CPU para regerá-las. O comportamento é o mesmo; mudam o nome e a linha do horário da loja no prompt.
+
 **Configuração padrão: 7B, modo livre** (`examples/livre_7b/`). A mesma bateria no 1.5B em modo restrito fica em `examples/restrito_1.5b/`, para comparação.
 
 | Roteiro | Cenário |
