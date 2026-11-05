@@ -322,6 +322,8 @@ Mesmos 5 roteiros (9 mensagens), mesma máquina (CPU de 4 núcleos, sem GPU), te
 
 Por isso o padrão é **7B livre**, e o próximo passo é a combinação das duas forças (ver "O que eu faria com mais tempo").
 
+**Depois da medição:** como resposta às falhas do redator, o modo restrito passou a responder perguntas de pedido por **template** preenchido pelo código (status, rastreio, prazos abertos e vencidos, protocolo, horário de volta da equipe), sem redação do modelo. Isso está coberto por testes, mas **não foi medido** nesta bateria de exemplos; os números acima são de antes dessa mudança.
+
 ## Limitações conhecidas
 
 - **Latência em CPU:** de 1 a 6 minutos por resposta na máquina de desenvolvimento. Não dá para usar com cliente real sem GPU ou API.
