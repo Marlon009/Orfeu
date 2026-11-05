@@ -111,3 +111,28 @@ def test_category_filled_from_text():
     agent, *_ = agent_with()
     data = agent.interpreter.ground('{"intencoes": ["buscar_produtos"], "termo": "ukulele elétrico"}', ["Tem ukulele elétrico?"])
     assert data["categoria"] == "Ukuleles"
+
+
+def test_order_answer_comes_from_template_not_from_model():
+    # Só uma resposta do LLM (o intérprete): se o redator fosse chamado, o FakeClient quebraria.
+    agent, client, _ = agent_with(
+        '{"intencoes": ["consultar_pedido", "consultar_politica"], "numero_pedido": 7, '
+        '"email_ou_telefone": "leticia.rocha@jmail.com", "topico": "trocas_devolucoes"}')
+    answer = agent.reply("Quero devolver o pedido 7, meu e-mail é leticia.rocha@jmail.com")
+    assert len(client.requests) == 1 and agent.last_stats["template"]
+    assert "garantia legal contra defeito (até 18/05/2026)" in answer
+    assert "Já passou o prazo de: devolução por arrependimento, troca por preferência" in answer
+
+
+def test_order_template_asks_for_data_when_anonymous():
+    agent, client, _ = agent_with('{"intencoes": ["consultar_pedido"]}')
+    answer = agent.reply("Me arrependi da compra, posso devolver?")
+    assert "número do pedido" in answer and len(client.requests) == 1
+
+
+def test_late_order_template_for_identified_customer(monkeypatch):
+    monkeypatch.setenv("EMPORIO_NOW", "2026-03-28T14:00")  # sábado à tarde, loja fechada
+    agent, _, _ = agent_with('{"intencoes": ["consultar_pedido"]}', phone="(67) 99654-7821", session="t-ana")
+    answer = agent.reply("Cadê meu pedido?")
+    assert answer.startswith("Oi, Ana!") and "BRJL5544332BR" in answer and "protocolo nº" in answer
+    assert "a equipe volta segunda (30/03/2026) às 09:00" in answer

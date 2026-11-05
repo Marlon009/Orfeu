@@ -18,7 +18,7 @@ from openai import OpenAI
 from . import config
 from .interpreter import Interpreter
 from .prompts import WRITER_PROMPT, build_system_prompt, reminders
-from .rules import store_status
+from .rules import next_opening, store_status
 from .tools import Toolbox, tool_specs
 from .validator import unsupported
 
@@ -177,6 +177,14 @@ class Agent:
             self._call_tool(name, args)
             if name == "buscar_produtos" and (args.get("termo") or args.get("categoria")):
                 self.tools.registrar_interesse(args.get("termo") or args["categoria"], args.get("categoria"))
+
+        # Pedido (com ou sem a política de trocas) é o caso em que o modelo pequeno mais erra
+        # ao redigir: a resposta sai de um template preenchido só com fatos do banco.
+        called = {name for name, args in calls if name != "consultar_politica" or "topico" in args}
+        if "consultar_pedido" in called and called <= {"consultar_pedido", "consultar_politica"} \
+                and not intents & {"acessorio"}:
+            self.last_stats["template"] = True
+            return self.tools.order_message(next_opening(self.now))
 
         notes = reminders(user_text, None)
         if "acessorio" in intents:

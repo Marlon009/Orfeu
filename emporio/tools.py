@@ -29,6 +29,10 @@ class Toolbox:
         self.session_id = session_id
         self.customer = customer
         self.today = today
+        # Resultado estruturado da última consulta de pedido, para o template do modo restrito.
+        self.verified_orders: list[sqlite3.Row] = []
+        self.order_lookup = None  # None, "ok", "faltam_dados" ou "nao_confirmado"
+        self.protocols: dict[int, int] = {}
 
     # ---------- catálogo ----------
 
@@ -167,6 +171,7 @@ class Toolbox:
             lines.append(f"Previsão de entrega: {rules.fmt_date(estimated)}")
             if estimated < self.today:
                 protocol = self._open_complaint(o["order_id"], "Entrega com previsão vencida")
+                self.protocols[o["order_id"]] = protocol
                 lines.append(f"ATRASADO: peça desculpas. Uma reclamação já foi aberta para a equipe (protocolo nº {protocol}); "
                              "o retorno é em até 24 horas úteis.")
         if o["status"] == "delivered" and estimated:
@@ -181,10 +186,12 @@ class Toolbox:
     def consultar_pedido(self, numero_pedido: int | None = None, email_ou_telefone: str | None = None) -> str:
         if numero_pedido is None:
             if not self.customer:
+                self.order_lookup = "faltam_dados"
                 return "Peça ao cliente o número do pedido e o e-mail ou telefone do cadastro."
             orders = self.conn.execute(
                 "SELECT * FROM orders WHERE customer_id = ? ORDER BY order_date DESC",
                 (self.customer["customer_id"],)).fetchall()
+            self.order_lookup, self.verified_orders = "ok", list(orders)
             if not orders:
                 return "Este cliente não tem pedidos registrados."
             return "\n\n".join(self._format_order(o) for o in orders)
@@ -192,9 +199,74 @@ class Toolbox:
         order = self.conn.execute("SELECT * FROM orders WHERE order_id = ?", (int(numero_pedido),)).fetchone()
         # Mesma resposta para pedido inexistente e identidade não confirmada: não vaza dados.
         if not order or not self._verified(order, email_ou_telefone):
+            self.order_lookup = "faltam_dados" if not email_ou_telefone and not self.customer else "nao_confirmado"
             return ("Não foi possível confirmar este pedido. Peça ao cliente para conferir o número "
                     "do pedido e informar o e-mail ou telefone usado no cadastro. Não dê nenhum detalhe do pedido.")
+        self.order_lookup, self.verified_orders = "ok", [order]
         return self._format_order(order)
+
+    def order_message(self, store_reopening: tuple | None = None) -> str:
+        """Resposta ao cliente montada só com fatos do banco: nada para o modelo errar.
+
+        `store_reopening` vem de `rules.next_opening`; quando a loja está fechada, a mensagem
+        diz quando a equipe volta, como pede o manual (seção 7.1)."""
+        if self.order_lookup == "faltam_dados":
+            return ("Pra eu localizar seu pedido, me passa o número do pedido e o e-mail ou telefone "
+                    "usado no cadastro? 🙂")
+        if self.order_lookup == "nao_confirmado":
+            return ("Não consegui confirmar esse pedido com esses dados. Pode conferir o número do pedido "
+                    "e o e-mail ou telefone usado no cadastro?")
+        name = f", {self.customer['name'].split()[0]}" if self.customer else ""
+        if not self.verified_orders:
+            return f"Oi{name}! Não encontrei pedidos no seu cadastro. Posso ajudar em mais alguma coisa?"
+        parts = [f"Oi{name}! " + ("Achei seu pedido:" if len(self.verified_orders) == 1 else "Achei seus pedidos:")]
+        needs_team = False
+        for o in self.verified_orders:
+            parts.append(self._order_paragraph(o))
+            needs_team |= o["order_id"] in self.protocols
+        if needs_team and store_reopening:
+            when, day, hour = store_reopening
+            parts.append(f"A loja está fechada agora; a equipe volta {when} ({rules.fmt_date(day)}) às {hour:02d}:00.")
+        parts.append("Posso ajudar em mais alguma coisa?")
+        return "\n\n".join(parts)
+
+    def _order_paragraph(self, o: sqlite3.Row) -> str:
+        items = self.conn.execute("""
+            SELECT i.quantity, p.name FROM order_items i JOIN products p USING (product_id)
+            WHERE i.order_id = ?""", (o["order_id"],)).fetchall()
+        order_date = date.fromisoformat(o["order_date"])
+        estimated = date.fromisoformat(o["estimated_delivery"]) if o["estimated_delivery"] else None
+        text = (f"📦 Pedido nº {o['order_id']}, de {rules.fmt_date(order_date)}: "
+                + ", ".join(f"{i['quantity']}x {i['name']}" for i in items)
+                + f" ({rules.brl(o['total_brl'])}, {rules.payment_label(o['payment_method'])}).")
+        status = o["status"]
+        if status == "pending":
+            text += " Está aguardando a confirmação do pagamento."
+            if o["payment_method"] == "boleto":
+                text += " O boleto compensa em até 3 dias úteis depois de pago."
+        elif status == "confirmed":
+            text += " O pagamento foi confirmado e o pedido está em separação."
+        elif status == "shipped":
+            text += f" Já foi enviado, com o código de rastreio {o['tracking_code']}"
+            text += f" e previsão de entrega para {rules.fmt_date(estimated)}." if estimated else "."
+            if o["order_id"] in self.protocols:
+                text += (" A previsão já passou, me desculpa por isso! Já abri uma reclamação para a equipe "
+                         f"(protocolo nº {self.protocols[o['order_id']]}), e o retorno é em até 24 horas úteis.")
+        elif status == "delivered" and estimated:
+            deadlines = rules.return_deadlines(order_date, estimated, self.today)
+            still_open = [(short, end) for short, _, end, is_open in deadlines if is_open]
+            closed = [short for short, _, _, is_open in deadlines if not is_open]
+            text += f" Foi entregue por volta de {rules.fmt_date(estimated)}."
+            if still_open:
+                text += " Ainda dá para pedir: " + "; ".join(f"{s} (até {rules.fmt_date(e)})" for s, e in still_open) + "."
+                if closed:
+                    text += " Já passou o prazo de: " + ", ".join(closed) + "."
+            else:
+                text += (" Os prazos de troca e devolução da loja já passaram. Ainda vale a garantia do fabricante "
+                         "(de 6 meses a 2 anos, conforme o certificado do instrumento), e a gente pode intermediar.")
+        elif status == "cancelled":
+            text += " Foi cancelado" + (f": {o['notes'].lower()}." if o["notes"] else ".")
+        return text
 
     # ---------- políticas ----------
 

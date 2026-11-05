@@ -86,23 +86,29 @@ def availability(status: str, stock: int) -> tuple[bool, str]:
     return True, f"disponível ({stock} em estoque)"
 
 
-def _deadline(label: str, start: date, days: int, today: date) -> str:
-    end = start + timedelta(days=days)
+def _deadline(label: str, end: date, today: date) -> str:
     if today <= end:
         return f"- {label}: DENTRO do prazo (vai até {fmt_date(end)}, faltam {(end - today).days} dias)"
     return f"- {label}: FORA do prazo (encerrou em {fmt_date(end)})"
 
 
-def return_windows(order_date: date, delivered: date, today: date) -> str:
-    """Prazos de troca/devolução/garantia de um pedido entregue, com a conclusão já pronta."""
+def return_deadlines(order_date: date, delivered: date, today: date) -> list[tuple[str, str, date, bool]]:
+    """(nome curto, rótulo, data final, ainda aberto) de cada prazo de um pedido entregue."""
     windows = [
         ("devolução por arrependimento", "Arrependimento/devolução (7 dias após o recebimento, compras online)", delivered, RETURN_DAYS),
         ("troca por preferência", "Troca por preferência (7 dias)", delivered, RETURN_DAYS),
         ("troca por defeito na loja", "Troca por defeito na loja (30 dias após a compra)", order_date, DEFECT_DAYS),
         ("garantia legal contra defeito", "Garantia legal (90 dias após o recebimento)", delivered, LEGAL_WARRANTY_DAYS),
     ]
-    lines = [_deadline(label, start, days, today) for _, label, start, days in windows]
-    still_open = [short for short, _, start, days in windows if today <= start + timedelta(days=days)]
+    return [(short, label, start + timedelta(days=days), today <= start + timedelta(days=days))
+            for short, label, start, days in windows]
+
+
+def return_windows(order_date: date, delivered: date, today: date) -> str:
+    """Prazos de troca/devolução/garantia de um pedido entregue, com a conclusão já pronta."""
+    deadlines = return_deadlines(order_date, delivered, today)
+    lines = [_deadline(label, end, today) for _, label, end, _ in deadlines]
+    still_open = [short for short, _, _, is_open in deadlines if is_open]
     if still_open:
         conclusion = "Ainda vale: " + ", ".join(still_open) + ". O resto NÃO é mais possível."
     else:
@@ -116,19 +122,28 @@ OPENING_HOURS = {0: (9, 18), 1: (9, 18), 2: (9, 18), 3: (9, 18), 4: (9, 18), 5: 
 WEEKDAYS = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
 
 
-def store_status(now: datetime) -> str:
-    """Se a loja está aberta agora e, se não, quando a equipe volta (manual, seção 7.1)."""
+def next_opening(now: datetime) -> tuple[str, date, int] | None:
+    """None se a loja está aberta; senão (quando, dia, hora) da volta da equipe."""
     hours = OPENING_HOURS.get(now.weekday())
     if hours and hours[0] <= now.hour < hours[1]:
-        return f"Loja ABERTA agora (fecha às {hours[1]:02d}:00); a equipe humana está atendendo."
+        return None
     for days_ahead in range(0, 8):
         day = now + timedelta(days=days_ahead)
         opening = OPENING_HOURS.get(day.weekday())
         if opening and (days_ahead > 0 or now.hour < opening[0]):
             when = "hoje" if days_ahead == 0 else ("amanhã" if days_ahead == 1 else WEEKDAYS[day.weekday()])
-            return (f"Loja FECHADA agora. A equipe humana volta {when} ({fmt_date(day.date())}) às "
-                    f"{opening[0]:02d}:00. Informe isso se o cliente precisar de uma pessoa da equipe.")
-    return "Horário da loja indisponível."
+            return when, day.date(), opening[0]
+    return None
+
+
+def store_status(now: datetime) -> str:
+    """Se a loja está aberta agora e, se não, quando a equipe volta (manual, seção 7.1)."""
+    reopening = next_opening(now)
+    if reopening is None:
+        return f"Loja ABERTA agora (fecha às {OPENING_HOURS[now.weekday()][1]:02d}:00); a equipe humana está atendendo."
+    when, day, hour = reopening
+    return (f"Loja FECHADA agora. A equipe humana volta {when} ({fmt_date(day)}) às {hour:02d}:00. "
+            "Informe isso se o cliente precisar de uma pessoa da equipe.")
 
 
 STOPWORDS = {"de", "da", "do", "das", "dos", "o", "a", "os", "as", "um", "uma", "para", "com",
