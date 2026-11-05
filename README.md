@@ -429,6 +429,20 @@ Por isso o padrão é **7B livre**, e o próximo passo é a combinação das dua
 
 ## Uso de assistentes de código
 
+### Como conduzi o projeto
+
+Antes de escrever código, fiz um brainstorm e esbocei as ideias no papel. Quis atender as três pessoas envolvidas na Empório da Música: o **cliente**, o **vendedor** e o **dono**. A premissa era que o dono decide o que usar e mantém o controle sobre os próprios dados e os do comércio, e que cada um dos três fosse bem atendido.
+
+Por isso, desde o início mirei em **modelos locais**: soberania de dados e mais controle para o dono. A dúvida passou a ser qual modelo local daria um resultado satisfatório sem pesar demais na CPU ou na GPU. Para isso, aproveitei elementos de um projeto de IA que venho desenvolvendo (o padrão do modo restrito, descrito abaixo). Ainda assim, deixei a porta aberta: se o dono preferir, ele configura Claude, Gemini ou ChatGPT pelo próprio terminal.
+
+A **bateria fechada** foi a forma que encontrei de fazer a IA chegar ao cliente cometendo o mínimo de erros, e de seguir melhorando: cada falha encontrada vira um caso novo de teste. A taxa de erro dificilmente chega a zero. É como o paradoxo de Zenão: dá para chegar cada vez mais perto, sem nunca chegar, e um erro bem próximo de zero já é satisfatório. As interfaces seguem a mesma lógica dos três usuários: clientes pela web e pelo WhatsApp, vendedores pelo terminal e o dono pela configuração no terminal. O perfil próprio do vendedor e o painel do dono são os próximos passos (ver "Como a loja usa o Orfeu").
+
+Testei o terminal e a versão web. Os modelos pequenos (1.5B) não atendem de forma satisfatória sozinhos, mas ainda são úteis em partes específicas, como interpretar a mensagem no modo restrito. A partir de 7B, os resultados foram satisfatórios.
+
+Este é o MVP do **Orfeu**, um ecossistema em que a **Lira** é o instrumento principal do músico.
+
+### Como usei o Claude Code
+
 Usei o **Claude Code** (modelo Claude Opus) no terminal ao longo de todo o projeto, como par de programação:
 
 1. **Leitura e análise:** pedi para ele ler o enunciado, o manual e os CSVs e listar as inconsistências. Ele escreveu um script que comparou os totais dos pedidos com os itens e encontrou as divergências da tabela acima.
@@ -438,5 +452,3 @@ Usei o **Claude Code** (modelo Claude Opus) no terminal ao longo de todo o proje
 5. **Iteração guiada pelas falhas:** a cada rodada de exemplos, eu e o assistente revisávamos as respostas, ele propunha a correção (de preferência no código, não no prompt) e eu decidia. As rodadas com falha estão commitadas, então o histórico mostra o antes e o depois (ver "Iterações com o modelo local").
 6. **Reaproveitamento de um projeto meu:** pedi para ele ler um projeto anterior meu (um assistente local com Ollama). De lá veio o padrão do modo restrito: o LLM só preenche um JSON com schema forçado, e o código confere cada campo contra o texto do usuário antes de usar. O assistente também apontou o que **não** se aplicava (a camada de decisão probabilística daquele projeto), e isso ficou de fora.
 7. **Decisão por medição:** a escolha entre 7B livre e 1.5B restrito saiu da mesma bateria de roteiros rodada nas duas configurações, não de opinião.
-
-<!-- TODO(Marlon): complemente com sua parte do workflow: o que você revisou, mudou ou decidiu diferente do assistente. -->
