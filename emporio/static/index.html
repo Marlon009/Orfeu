@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Orfeu — Empório da Música</title>
+<title>Lira — Empório da Música</title>
 <style>
   :root {
     --bg: #f4f1ea; --panel: #fffdf8; --ink: #1f2a33; --muted: #6b7680; --line: #e4ddd0;
@@ -58,7 +58,7 @@
 <body class="backstage">
 <div class="app">
   <header>
-    <h1>Orfeu · Empório da Música</h1>
+    <h1>Lira · Empório da Música</h1>
     <p>Atendimento virtual — instrumentos, pedidos, horários e trocas</p>
   </header>
 
@@ -147,7 +147,7 @@ $("form").addEventListener("submit", async (e) => {
   const typing = Object.assign(document.createElement("div"), { className: "typing" });
   $("log").append(typing);
   const start = Date.now();
-  const tick = setInterval(() => { typing.textContent = `Orfeu está digitando… ${Math.round((Date.now() - start) / 1000)} s`; }, 500);
+  const tick = setInterval(() => { typing.textContent = `Lira está digitando… ${Math.round((Date.now() - start) / 1000)} s`; }, 500);
   try {
     const res = await fetch("/api/mensagem", {
       method: "POST", headers: { "Content-Type": "application/json" },

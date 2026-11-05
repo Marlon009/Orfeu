@@ -27,7 +27,7 @@ def client(monkeypatch):
 
 
 def test_page_is_served(client):
-    assert "Orfeu · Empório da Música" in client.get("/").text
+    assert "Lira · Empório da Música" in client.get("/").text
 
 
 def test_chat_and_history(client):

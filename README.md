@@ -1,11 +1,11 @@
-# Orfeu: agente de atendimento da Empório da Música
+# Orfeu · Lira, agente de atendimento da Empório da Música
 
-Protótipo de um agente de mensagens de texto para a Empório da Música, uma loja fictícia de instrumentos em Campo Grande/MS. O Orfeu responde sobre o catálogo (preço, promoção, estoque), sobre pedidos (status, rastreio, prazos de troca) e sobre as políticas da loja. Ele sempre consulta os dados por ferramentas e nunca responde de memória.
+Protótipo de um agente de mensagens de texto para a Empório da Música, uma loja fictícia de instrumentos em Campo Grande/MS. A **Lira** responde sobre o catálogo (preço, promoção, estoque), sobre pedidos (status, rastreio, prazos de troca) e sobre as políticas da loja. Ela sempre consulta os dados por ferramentas e nunca responde de memória.
 
 ```
 Você: Quanto custa o Takamine GD20?
   🔧 buscar_produtos(termo='Takamine GD20')
-Orfeu: O Takamine GD20 custa R$ 2.199,00. Com o pagamento à vista no PIX, você ganha um desconto de 5%, totalizando R$ 2.089,05. ...
+Lira: O Takamine GD20 custa R$ 2.199,00. Com o pagamento à vista no PIX, você ganha um desconto de 5%, totalizando R$ 2.089,05. ...
 ```
 
 ## Como rodar
@@ -117,7 +117,7 @@ Os três canais são adaptadores finos sobre o mesmo `Agent.reply()`. Canal novo
 
 ```bash
 curl -X POST http://127.0.0.1:8000/webhook/whatsapp -d 'From=whatsapp:+5567996547821&Body=Cadê meu pedido?'
-curl http://127.0.0.1:8000/api/whatsapp/saida     # resposta do Orfeu, status "simulado"
+curl http://127.0.0.1:8000/api/whatsapp/saida     # resposta da Lira, status "simulado"
 ```
 
 **Ligar a um número real (sandbox do Twilio):**
@@ -189,7 +189,7 @@ O padrão do intérprete foi adaptado de um projeto meu anterior (ver "Uso de as
 
 ### Estratégia de prompt
 O system prompt (`emporio/prompts.py`) tem três partes:
-- a persona, tirada da seção 7.1 do manual: informal mas profissional, "um amigo que entende de música". O nome é **Orfeu**, o músico da mitologia que encantava com a lira e que, no Brasil, virou *Orfeu da Conceição*, de Vinicius de Moraes. Um nome musical e brasileiro para uma loja de instrumentos;
+- a persona, tirada da seção 7.1 do manual: informal mas profissional, "um amigo que entende de música". O projeto se chama **Orfeu**, o músico da mitologia que encantava com a lira e que, no Brasil, virou *Orfeu da Conceição*, de Vinicius de Moraes. A assistente é a **Lira**, o instrumento dele: a voz do ecossistema;
 - um guia de quando usar cada ferramenta;
 - 10 regras numeradas: não inventar dados, copiar valores sem calcular, mostrar promoção com preço original e percentual, verificar identidade, escopo só de instrumentos, recusar assuntos fora da loja.
 
@@ -211,7 +211,7 @@ A checagem é por palavra inteira, para "acabou" não disparar "cabo".
 O manual (seção 7.1) pede que, fora do expediente, o assistente informe quando a equipe volta. O código calcula isso (`rules.store_status`) e o resultado vai pronto para o modelo: "Loja FECHADA agora. A equipe humana volta segunda (30/03/2026) às 09:00". A data é a de referência e a hora é a real de Campo Grande, ou ambas fixas por `EMPORIO_NOW`. Feriados não entram, porque não estão nos dados.
 
 ### Identidade e privacidade (LGPD)
-- **Cliente que chega pelo WhatsApp:** o telefone identifica a pessoa, simulado com `--telefone`. O Orfeu cumprimenta pelo nome e pode consultar os pedidos dela.
+- **Cliente que chega pelo WhatsApp:** o telefone identifica a pessoa, simulado com `--telefone`. A Lira cumprimenta pelo nome e pode consultar os pedidos dela.
 - **Cliente anônimo:** precisa informar o número do pedido e o e-mail ou telefone do cadastro.
 - **Pedido inexistente e identidade errada recebem a mesma resposta**, para não confirmar que um pedido existe.
 
@@ -293,7 +293,7 @@ Os dados originais ficam intocados em `data/raw/`. Os problemas que encontrei, e
 
 Gerados pelo próprio agente a partir de `examples/roteiros/`, com `./examples/gerar.sh`. As linhas com 🔧 são as ferramentas chamadas; abaixo de cada resposta ficam o tempo e o que o validador barrou. O cabeçalho de cada arquivo registra o modelo, o modo, a temperatura e o hash do prompt.
 
-> **Nota:** as conversas foram geradas quando o assistente ainda se chamava **Lia**; o nome mudou para Orfeu depois, já no fim do prazo, e não houve tempo de CPU para regerá-las. O comportamento é o mesmo; mudam o nome e a linha do horário da loja no prompt.
+> **Nota:** as conversas foram geradas quando o assistente ainda se chamava **Lia**; o nome mudou para Lira depois, já no fim do prazo, e não houve tempo de CPU para regerá-las. O comportamento é o mesmo; mudam o nome e a linha do horário da loja no prompt.
 
 **Configuração padrão: 7B, modo livre** (`examples/livre_7b/`). A mesma bateria no 1.5B em modo restrito fica em `examples/restrito_1.5b/`, para comparação.
 
