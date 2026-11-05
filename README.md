@@ -181,7 +181,7 @@ Os três canais são adaptadores finos sobre o mesmo `Agent.reply()`. Canal novo
 
 | Canal | Como usar | Detalhes |
 |---|---|---|
-| **Terminal** | `python -m emporio.cli` | `--telefone` simula o remetente do WhatsApp; `--roteiro` roda conversas prontas |
+| **Terminal** | `python -m emporio.cli` | `--telefone` simula o remetente do WhatsApp; `--roteiro` roda conversas prontas. Mostra "Lira está digitando… N s" enquanto espera; `/ajuda`, `/limpar` (apaga o histórico da conversa) e `/sair`. **Ctrl+C durante a resposta cancela só aquela resposta**; no prompt, encerra |
 | **Web** | `python -m emporio.web` e abrir http://127.0.0.1:8000 | Chat com campo opcional de telefone e painel de **bastidores** (ferramentas chamadas, tempo, o que o validador barrou). API JSON em `POST /api/mensagem` |
 | **WhatsApp** | webhook `POST /webhook/whatsapp` no mesmo servidor | Formato do Twilio. Sem credenciais, roda em **modo simulado** |
 

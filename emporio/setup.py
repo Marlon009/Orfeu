@@ -240,4 +240,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (KeyboardInterrupt, EOFError):
+        # select() restaura o terminal no finally; aqui só não mostramos o traceback.
+        print("\nSaindo. Nada foi alterado nesta etapa.")
+        sys.exit(130)
