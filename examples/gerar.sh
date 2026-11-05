@@ -4,6 +4,8 @@
 set -e
 cd "$(dirname "$0")/.."
 OUT="${1:-examples}"
+# Data e hora fixas (quarta, 10h, loja aberta) para os exemplos serem reprodutíveis.
+export EMPORIO_NOW="${EMPORIO_NOW:-2026-03-25T10:00}"
 mkdir -p "$OUT"
 # Começa cada exemplo do zero (sem histórico de rodadas anteriores).
 python3 -c "from emporio.db import connect; c = connect(); c.execute(\"DELETE FROM messages WHERE session_id LIKE 'ex0%'\"); c.execute('DELETE FROM complaints'); c.execute(\"DELETE FROM sqlite_sequence WHERE name = 'complaints'\"); c.commit()"

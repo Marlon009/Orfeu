@@ -18,6 +18,7 @@ from openai import OpenAI
 from . import config
 from .interpreter import Interpreter
 from .prompts import WRITER_PROMPT, build_system_prompt, reminders
+from .rules import store_status
 from .tools import Toolbox, tool_specs
 from .validator import unsupported
 
@@ -113,12 +114,12 @@ class Agent:
         return []
 
     def _problems(self, answer: str, user_text: str, history: list[dict]) -> list[str]:
-        return unsupported(answer, self.tool_outputs + [user_text] + [m["content"] for m in history])
+        return unsupported(answer, self.tool_outputs + [user_text, self.store] + [m["content"] for m in history])
 
     # ---------- modo livre ----------
 
     def _reply_free(self, user_text: str, history: list[dict]) -> str:
-        messages = [{"role": "system", "content": build_system_prompt(self.tools.today, self.customer)}, *history]
+        messages = [{"role": "system", "content": build_system_prompt(self.now, self.customer)}, *history]
         notes = reminders(user_text, self.customer)
         if notes:
             messages.append({"role": "system", "content": "Lembrete para esta mensagem: " + " ".join(notes)})
@@ -182,7 +183,8 @@ class Agent:
             notes.append("O cliente também pediu acessório: diga que a loja não vende acessórios.")
         data_block = "\n\n".join(self.tool_outputs) or "(nenhuma consulta: é só conversa)"
         messages = [{"role": "system", "content": WRITER_PROMPT.format(
-                        customer=self.customer["name"].split()[0] if self.customer else "não identificado")},
+                        customer=self.customer["name"].split()[0] if self.customer else "não identificado",
+                        store=self.store)},
                     # Só as mensagens do cliente: modelos pequenos copiam respostas anteriores.
                     *[m for m in history[-4:] if m["role"] == "user"],
                     {"role": "user", "content": f"{user_text}\n\n[DADOS CONSULTADOS]\n{data_block}"
@@ -203,6 +205,8 @@ class Agent:
         start = time.monotonic()
         self.tool_outputs: list[str] = []
         self.last_stats = {"modo": self.mode}
+        self.now = config.now()
+        self.store = store_status(self.now)
         history = self._history()
         if self.mode == "restrito":
             answer = self._reply_restricted(user_text, history)

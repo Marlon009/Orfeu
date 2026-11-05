@@ -108,3 +108,26 @@ def test_generic_search_hides_unavailable(tools):
     out = tools.buscar_produtos(termo="nylon", categoria="Violões", preco_max=1000)
     assert "Shelby SN-7C" not in out and "Yamaha C40" in out
     assert "DESCONTINUADO" in tools.buscar_produtos(termo="Shelby SN-7C")
+
+
+@pytest.mark.parametrize("when, expected", [
+    ("2026-03-25T10:00", "ABERTA agora (fecha às 18:00)"),             # quarta de manhã
+    ("2026-03-25T19:30", "volta amanhã (26/03/2026) às 09:00"),         # quarta à noite
+    ("2026-03-28T14:00", "volta segunda (30/03/2026) às 09:00"),        # sábado depois das 13h
+    ("2026-03-29T11:00", "volta amanhã (30/03/2026) às 09:00"),         # domingo
+    ("2026-03-27T07:45", "volta hoje (27/03/2026) às 09:00"),           # sexta antes de abrir
+    ("2026-03-28T12:59", "ABERTA agora (fecha às 13:00)"),              # sábado quase fechando
+])
+def test_store_status(when, expected):
+    from datetime import datetime
+    assert expected in rules.store_status(datetime.fromisoformat(when))
+
+
+def test_store_hours_in_prompt_and_allowed_by_validator(monkeypatch):
+    from emporio.prompts import build_system_prompt
+    from emporio.validator import unsupported
+    from datetime import datetime
+    status = rules.store_status(datetime.fromisoformat("2026-03-28T14:00"))
+    prompt = build_system_prompt(datetime.fromisoformat("2026-03-28T14:00"))
+    assert "Agora: sábado, 28/03/2026, 14:00" in prompt and status in prompt
+    assert unsupported("A equipe volta segunda, 30/03, às 09:00.", [status]) == []

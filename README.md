@@ -47,6 +47,7 @@ Configuração por variáveis de ambiente (todas opcionais):
 | `LLM_TEMPERATURE` | `0` | 0 para respostas estáveis e reprodutíveis |
 | `EMPORIO_MODE` | `livre` | `livre` (function calling) ou `restrito` (formulário JSON validado); ver "Dois modos de execução" |
 | `EMPORIO_TODAY` | `2026-03-25` | data de referência para os prazos (ver Suposições) |
+| `EMPORIO_NOW` | vazio | fixa data e hora (ex.: `2026-03-28T14:00`); vazio = data de referência + hora real de Campo Grande |
 | `LOW_STOCK_THRESHOLD` | `2` | limite do alerta de estoque baixo |
 | `HOST` / `PORT` | `127.0.0.1` / `8000` | endereço do servidor web |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` | vazios | credenciais do WhatsApp; vazias = modo simulado |
@@ -206,6 +207,9 @@ Pelo mesmo motivo, o agente injeta **lembretes por palavra-chave** (`prompts.rem
 
 A checagem é por palavra inteira, para "acabou" não disparar "cabo".
 
+### Loja aberta ou fechada
+O manual (seção 7.1) pede que, fora do expediente, o assistente informe quando a equipe volta. O código calcula isso (`rules.store_status`) e o resultado vai pronto para o modelo: "Loja FECHADA agora. A equipe humana volta segunda (30/03/2026) às 09:00". A data é a de referência e a hora é a real de Campo Grande, ou ambas fixas por `EMPORIO_NOW`. Feriados não entram, porque não estão nos dados.
+
 ### Identidade e privacidade (LGPD)
 - **Cliente que chega pelo WhatsApp:** o telefone identifica a pessoa, simulado com `--telefone`. O Orfeu cumprimenta pelo nome e pode consultar os pedidos dela.
 - **Cliente anônimo:** precisa informar o número do pedido e o e-mail ou telefone do cadastro.
@@ -326,7 +330,6 @@ Por isso o padrão é **7B livre**, e o próximo passo é a combinação das dua
 - **O validador só confere números:** preço, data e horário. Uma frase inventada sem número ("a receita está no site da loja") passa.
 - **Perguntas de refinamento:** às vezes o modelo filtra a lista que já mostrou em vez de buscar de novo. No exemplo 01, ele sugeriu 2 violões de nylon quando havia 4 até R$ 1.000.
 - **Busca por palavras-chave:** não entende sinônimos ("violão de aço" acha, "violão de cordas metálicas" não) nem pedidos vagos como "algo bom pra rock".
-- **Sem horário em tempo real:** o agente informa o horário de funcionamento, mas não sabe se a loja está aberta agora.
 - **Avaliação parcial:** a bateria automática cobre só o intérprete, com 38 casos. A redação final foi revisada à mão nos 5 roteiros.
 - **Interesse sem consentimento:** `registrar_interesse` guarda interesses sem pedir permissão. Para uso real, é preciso definir a base legal (LGPD) e permitir a exclusão.
 

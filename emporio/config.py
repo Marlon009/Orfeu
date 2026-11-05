@@ -1,6 +1,7 @@
 import os
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -18,6 +19,15 @@ AGENT_MODE = os.getenv("EMPORIO_MODE", "livre")
 # Os dados são um snapshot que termina em março/2026, então "hoje" é configurável
 # para que prazos (devolução, garantia, atraso de entrega) façam sentido.
 REFERENCE_DATE = date.fromisoformat(os.getenv("EMPORIO_TODAY", "2026-03-25"))
+TIMEZONE = ZoneInfo("America/Campo_Grande")
+
+
+def now() -> datetime:
+    """Data de referência com a hora real de Campo Grande; EMPORIO_NOW fixa as duas (testes e exemplos)."""
+    fixed = os.getenv("EMPORIO_NOW")
+    if fixed:
+        return datetime.fromisoformat(fixed)
+    return datetime.combine(REFERENCE_DATE, datetime.now(TIMEZONE).time().replace(microsecond=0))
 
 LOW_STOCK_THRESHOLD = int(os.getenv("LOW_STOCK_THRESHOLD", "2"))
 HISTORY_TURNS = int(os.getenv("HISTORY_TURNS", "6"))

@@ -1,7 +1,7 @@
 """Regras do manual de políticas, em código: o LLM nunca calcula preço ou prazo."""
 import unicodedata
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 PIX_DISCOUNT = 0.05
 INSTALLMENT_MIN = [(3, 50.0), (6, 80.0), (12, 100.0)]  # (até N parcelas, parcela mínima)
@@ -109,6 +109,26 @@ def return_windows(order_date: date, delivered: date, today: date) -> str:
         conclusion = ("Nenhum prazo da loja está aberto. Resta só a garantia do fabricante "
                       "(6 meses a 2 anos, ver certificado), que a loja pode intermediar.")
     return "\n".join(lines + [f"CONCLUSÃO: {conclusion}"])
+
+
+# Horário da loja e do atendimento humano (manual, seção 2). Feriados não estão nos dados.
+OPENING_HOURS = {0: (9, 18), 1: (9, 18), 2: (9, 18), 3: (9, 18), 4: (9, 18), 5: (9, 13)}
+WEEKDAYS = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+
+
+def store_status(now: datetime) -> str:
+    """Se a loja está aberta agora e, se não, quando a equipe volta (manual, seção 7.1)."""
+    hours = OPENING_HOURS.get(now.weekday())
+    if hours and hours[0] <= now.hour < hours[1]:
+        return f"Loja ABERTA agora (fecha às {hours[1]:02d}:00); a equipe humana está atendendo."
+    for days_ahead in range(0, 8):
+        day = now + timedelta(days=days_ahead)
+        opening = OPENING_HOURS.get(day.weekday())
+        if opening and (days_ahead > 0 or now.hour < opening[0]):
+            when = "hoje" if days_ahead == 0 else ("amanhã" if days_ahead == 1 else WEEKDAYS[day.weekday()])
+            return (f"Loja FECHADA agora. A equipe humana volta {when} ({fmt_date(day.date())}) às "
+                    f"{opening[0]:02d}:00. Informe isso se o cliente precisar de uma pessoa da equipe.")
+    return "Horário da loja indisponível."
 
 
 STOPWORDS = {"de", "da", "do", "das", "dos", "o", "a", "os", "as", "um", "uma", "para", "com",
