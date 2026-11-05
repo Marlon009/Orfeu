@@ -153,12 +153,15 @@ $("form").addEventListener("submit", async (e) => {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ texto, sessao: session, telefone: $("phone").value }),
     });
-    if (!res.ok) throw new Error(res.status);
+    if (!res.ok) {
+      const detail = (await res.json().catch(() => ({}))).detail;
+      throw new Error(typeof detail === "string" ? detail : res.status);
+    }
     const data = await res.json();
     $("who").textContent = data.cliente || "cliente não identificado";
     bubble("assistant", data.resposta, data);
   } catch (err) {
-    bubble("assistant", "Não consegui falar com o servidor agora (" + err.message + "). Tente de novo em instantes.");
+    bubble("assistant", "Não consegui responder agora: " + err.message);
   } finally {
     clearInterval(tick);
     typing.remove();

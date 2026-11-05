@@ -17,9 +17,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from openai import OpenAI
-
-from . import config
+from . import config, providers
 from .db import connect
 from .interpreter import SPECIAL_INTENTS, Interpreter
 from .rules import normalize, tokens
@@ -74,7 +72,7 @@ def score(case: dict, raw: dict, grounded: dict, all_intents: list[str]) -> dict
             "descartados": dropped, "saida": grounded}
 
 
-def run(cases: list[dict], client: OpenAI, model: str) -> list[dict]:
+def run(cases: list[dict], client, model: str) -> list[dict]:
     interpreter = Interpreter(tool_specs(connect()))
     all_intents = interpreter.schema["properties"]["intencoes"]["items"]["enum"]
     results = []
@@ -132,7 +130,7 @@ def main() -> None:
             ledger.write(json.dumps({"quando": datetime.now().isoformat(timespec="seconds"),
                                      "modelo": config.LLM_MODEL}, ensure_ascii=False) + "\n")
 
-    client = OpenAI(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY)
+    client = providers.make_client()
     results = run(cases, client, config.LLM_MODEL)
     text = report(results, config.LLM_MODEL, split)
     print("\n" + text)

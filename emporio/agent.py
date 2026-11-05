@@ -1,4 +1,4 @@
-"""Agente sobre qualquer API compatível com a OpenAI (Ollama por padrão), em dois modos.
+"""Agente sobre o provedor configurado (Ollama local, OpenAI, Gemini ou Claude), em dois modos.
 
 - livre: loop de function calling; o modelo decide quais ferramentas chamar e quando.
 - restrito: o modelo só preenche um formulário JSON validado (`interpreter.py`), o código
@@ -13,9 +13,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 
-from openai import OpenAI
-
-from . import config
+from . import config, providers
 from .interpreter import Interpreter
 from .prompts import WRITER_PROMPT, build_system_prompt, reminders
 from .rules import next_opening, store_status
@@ -42,14 +40,14 @@ def find_customer(conn: sqlite3.Connection, phone: str | None) -> sqlite3.Row | 
 
 class Agent:
     def __init__(self, phone: str | None = None, session_id: str | None = None,
-                 on_tool: Callable[[str, dict, str], None] | None = None, client: OpenAI | None = None,
+                 on_tool: Callable[[str, dict, str], None] | None = None, client=None,
                  mode: str | None = None):
         self.tools = Toolbox(session_id or "anon")
         self.tools.customer = find_customer(self.tools.conn, phone)
         # Sessão = número do WhatsApp; assim o histórico volta quando o cliente retorna.
         self.session_id = session_id or (f"tel-{self.tools.customer['phone_digits']}" if self.tools.customer else "anon")
         self.tools.session_id = self.session_id
-        self.client = client or OpenAI(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY)
+        self.client = client or providers.make_client()
         self.specs = tool_specs(self.tools.conn)
         self.params = {s["function"]["name"]: s["function"]["parameters"]["properties"] for s in self.specs}
         self.mode = mode or config.AGENT_MODE
@@ -132,6 +130,8 @@ class Agent:
                 calls = self._calls_in_text(msg.content or "")
             if not calls:
                 answer = (msg.content or "").strip()
+                if not answer:  # resposta vazia (ex.: recusa do provedor) nunca chega ao cliente
+                    break
                 problems = self._problems(answer, user_text, history)
                 if not problems:
                     return answer
@@ -199,6 +199,8 @@ class Agent:
                      + (f"\n\n[LEMBRETE] {' '.join(notes)}" if notes else "")}]
         for attempt in range(2):
             answer = (self._chat(messages).content or "").strip()
+            if not answer:
+                break
             problems = self._problems(answer, user_text, history)
             if not problems:
                 return answer

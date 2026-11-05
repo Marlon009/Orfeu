@@ -10,10 +10,10 @@ import re
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
-from . import whatsapp
+from . import providers, whatsapp
 from .agent import Agent, find_customer
 from .db import connect
 
@@ -21,6 +21,11 @@ STATIC = Path(__file__).parent / "static"
 PUBLIC_URL = os.getenv("PUBLIC_URL", "")  # URL pública do webhook (ngrok), usada na assinatura do Twilio
 
 app = FastAPI(title="Lira — Empório da Música (Orfeu)")
+
+
+@app.exception_handler(providers.ProviderError)
+def provider_not_ready(_request: Request, exc: providers.ProviderError) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
 class Message(BaseModel):

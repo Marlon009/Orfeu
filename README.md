@@ -41,9 +41,11 @@ Configuração por variáveis de ambiente (todas opcionais):
 
 | Variável | Padrão | Para quê |
 |---|---|---|
-| `LLM_BASE_URL` | `http://localhost:11434/v1` | qualquer API compatível com a da OpenAI |
-| `LLM_API_KEY` | `ollama` | chave do provedor |
-| `LLM_MODEL` | `huihui_ai/qwen2.5-abliterate:latest` | modelo |
+| `LLM_PROVIDER` | `ollama` | `ollama`, `openai`, `gemini` ou `anthropic` (ver "Provedor do LLM") |
+| `LLM_BASE_URL` | do provedor | sobrescreve o endereço (ex.: outro servidor compatível com a OpenAI) |
+| `LLM_API_KEY` | do provedor | sobrescreve a chave; por padrão lê `OPENAI_API_KEY`, `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY` |
+| `LLM_MODEL` | do provedor | modelo (Ollama: `huihui_ai/qwen2.5-abliterate:latest`; Claude: `claude-opus-5-5`) |
+| `LLM_EFFORT` | `low` | só Claude: esforço de raciocínio (`low` a `max`) |
 | `LLM_TEMPERATURE` | `0` | 0 para respostas estáveis e reprodutíveis |
 | `EMPORIO_MODE` | `livre` | `livre` (function calling) ou `restrito` (formulário JSON validado); ver "Dois modos de execução" |
 | `EMPORIO_TODAY` | `2026-03-25` | data de referência para os prazos (ver Suposições) |
@@ -53,7 +55,7 @@ Configuração por variáveis de ambiente (todas opcionais):
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` | vazios | credenciais do WhatsApp; vazias = modo simulado |
 | `PUBLIC_URL` | vazio | URL pública do webhook (ngrok), usada para validar a assinatura do Twilio |
 
-Para usar um modelo pago, por exemplo: `LLM_BASE_URL=https://api.openai.com/v1 LLM_API_KEY=sk-... LLM_MODEL=gpt-4o-mini python -m emporio.cli`.
+Para usar um modelo por API, ver "Provedor do LLM: local ou API".
 
 > **Desempenho:** em CPU (4 núcleos, sem GPU), cada resposta leva de 1 a 6 minutos. Com GPU ou com um modelo via API, leva poucos segundos. Se o Ollama cortar o contexto, suba o limite com `OLLAMA_CONTEXT_LENGTH=8192 ollama serve`.
 
@@ -90,6 +92,8 @@ emporio/
   agent.py     os dois modos, histórico e métricas por resposta
   cli.py       interface de terminal e modo roteiro
   alerts.py    relatório para o dono
+  providers.py escolha do provedor (Ollama, OpenAI, Gemini, Claude) e diagnóstico do que falta
+  anthropic_adapter.py  Claude pelo SDK oficial, com a mesma interface do agente
   web.py       servidor HTTP: página de chat, API JSON e webhook do WhatsApp
   whatsapp.py  adaptador do Twilio: leitura, assinatura e envio (ou modo simulado)
   static/      página de chat (HTML único, sem build)
@@ -98,6 +102,40 @@ data/policies/ manual dividido por tópico
 examples/      conversas reais geradas pelo agente
 tests/         testes das regras e ferramentas
 ```
+
+## Provedor do LLM: local ou API
+
+O mesmo agente roda com um modelo **local** (Ollama) ou por **API** (OpenAI, Gemini, Claude). A escolha é uma variável:
+
+```bash
+LLM_PROVIDER=ollama      # padrão: modelo local, sem chave
+LLM_PROVIDER=openai      OPENAI_API_KEY=...    LLM_MODEL=<modelo>
+LLM_PROVIDER=gemini      GEMINI_API_KEY=...    LLM_MODEL=<modelo>
+LLM_PROVIDER=anthropic   ANTHROPIC_API_KEY=... # modelo padrão: claude-opus-5-5
+```
+
+**O sistema diz o que falta e instala, se você pedir:**
+
+```bash
+python -m emporio.providers             # verifica o provedor atual
+python -m emporio.providers --todos     # verifica todos
+python -m emporio.providers --instalar  # instala o pacote Python que faltar
+```
+
+```
+✅ ollama (atual): pronto
+⚠️  anthropic: falta configurar
+   - pacote Python `anthropic` não instalado: `pip install anthropic` ou `python -m emporio.providers --instalar`
+   - chave não definida: `export ANTHROPIC_API_KEY=...`
+```
+
+Ele confere o pacote Python, a chave, o modelo e, no caso do Ollama, se o servidor responde e se o modelo foi baixado (`ollama pull ...`). Nada é instalado sem `--instalar`: o atendimento nunca baixa pacotes sozinho. Se o provedor não estiver pronto, o terminal e a web mostram a mesma instrução em vez de um erro técnico.
+
+**Como cada provedor é chamado:**
+- **Ollama, OpenAI e Gemini** usam o cliente `openai`, porque os três oferecem uma API compatível com a da OpenAI. Muda só o endereço e a chave.
+- **Claude** usa o SDK oficial `anthropic`, por um adaptador (`anthropic_adapter.py`) que mantém a mesma interface para o agente. Ele traduz ferramentas e resultados para o formato da Messages API, usa a saída estruturada nativa (`output_config.format`) no modo restrito, devolve intacta a resposta original do Claude a cada volta do loop de ferramentas (como a API exige), não envia `temperature` (que a API não aceita mais) e liga o *fallback* do servidor: se o Claude recusar uma resposta por política, a própria API tenta de novo com outro modelo. O esforço de raciocínio é `low` (`LLM_EFFORT`), adequado para chat.
+
+**Testado:** o adaptador do Claude e o diagnóstico têm testes com cliente falso. **Não testado ao vivo:** OpenAI, Gemini e Claude, por falta de chaves de API na máquina de desenvolvimento. Os nomes de modelo de OpenAI e Gemini não têm padrão de propósito, porque mudam com frequência; o diagnóstico avisa quando faltam.
 
 ## Interfaces: terminal, web e WhatsApp
 

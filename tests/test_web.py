@@ -4,8 +4,7 @@ from urllib.parse import urlencode
 import pytest
 from fastapi.testclient import TestClient
 
-from emporio import agent as agent_module
-from emporio import web, whatsapp
+from emporio import providers, web, whatsapp
 from emporio.db import connect
 
 
@@ -22,7 +21,7 @@ class EchoClient:
 
 @pytest.fixture
 def client(monkeypatch):
-    monkeypatch.setattr(agent_module, "OpenAI", EchoClient)
+    monkeypatch.setattr(providers, "make_client", EchoClient)
     return TestClient(web.app)
 
 

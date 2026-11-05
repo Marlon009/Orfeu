@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from . import config, prompts
+from . import config, prompts, providers
 from .agent import Agent
 
 
@@ -32,7 +32,10 @@ def main() -> None:
         if args.debug:
             print(f"  {line}", file=sys.stderr)
 
-    agent = Agent(phone=args.telefone, session_id=args.sessao, on_tool=on_tool, mode=args.modo)
+    try:
+        agent = Agent(phone=args.telefone, session_id=args.sessao, on_tool=on_tool, mode=args.modo)
+    except providers.ProviderError as exc:
+        raise SystemExit(f"⚠️  {exc}")
     who = agent.customer["name"] if agent.customer else "cliente não identificado"
     print(f"Empório da Música — atendimento virtual ({who}). Digite 'sair' para encerrar.\n")
 
