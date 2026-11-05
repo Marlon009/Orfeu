@@ -92,6 +92,7 @@ emporio/
   agent.py     os dois modos, histórico e métricas por resposta
   cli.py       interface de terminal e modo roteiro
   alerts.py    relatório para o dono
+  setup.py     configuração pelo dono: login e escolha da IA (local ou API)
   providers.py escolha do provedor (Ollama, OpenAI, Gemini, Claude) e diagnóstico do que falta
   anthropic_adapter.py  Claude pelo SDK oficial, com a mesma interface do agente
   web.py       servidor HTTP: página de chat, API JSON e webhook do WhatsApp
@@ -102,6 +103,43 @@ data/policies/ manual dividido por tópico
 examples/      conversas reais geradas pelo agente
 tests/         testes das regras e ferramentas
 ```
+
+## Como a loja usa o Orfeu
+
+A ideia é o dono instalar o Orfeu na loja, escolher qual IA ela vai usar e deixar a Lira atender em três frentes:
+
+```
+                    ┌───────── servidor Orfeu (na loja) ─────────┐
+ cliente ── web ────┤  Lira, perfil cliente                      │
+ cliente ── WhatsApp┤   catálogo, pedidos com verificação,       │
+                    │   políticas, recusa fora do escopo         │
+ vendedor ─ terminal┤  Lira, perfil vendedor (com login)         ├── banco da loja
+                    │   estoque exato, pedidos de qualquer       │
+                    │   cliente, interesses, reclamações         │
+ dono ──── terminal ┤  configuração: login e escolha da IA       │
+ dono ──── painel ──┤  alertas, interesses, reclamações          │
+                    └────────────────────────────────────────────┘
+```
+
+**Já existe:** os canais de cliente (web e WhatsApp), o terminal, o relatório de alertas (`python -m emporio.alerts`) e a configuração do dono, descrita abaixo.
+
+**Próximos passos:**
+- o **perfil vendedor**: prompt interno, ferramentas com dados de todos os clientes e login, porque expõe dados pessoais (LGPD);
+- o **painel do dono** na web, mostrando o relatório de alertas, os interesses e as reclamações, com login;
+- a **integração com o sistema de gestão da loja**: as ferramentas passam a ler o sistema real em vez do SQLite gerado dos CSVs. O agente não muda, porque só conhece as ferramentas.
+
+### Configuração pelo dono
+
+```bash
+python -m emporio.setup
+```
+
+1. **No primeiro acesso,** o dono cria o seu login. A senha é guardada só como hash (scrypt), nunca em texto.
+2. **Nos acessos seguintes,** o sistema pede login e senha, com até 3 tentativas.
+3. **O dono escolhe a IA da loja:** local (Ollama, mostrando os modelos já baixados) ou por API (ChatGPT, Gemini ou Claude). Para API, informa a chave, que é digitada sem aparecer na tela e depois exibida mascarada (`sk-a…3456`), e o modelo.
+4. **A escolha é verificada na hora:** o sistema roda o diagnóstico do provedor e oferece instalar o que faltar.
+
+A escolha fica em `data/orfeu.env` e o login em `data/dono.json`. Os dois ficam fora do git, com permissão só para o dono (0600). O sistema inteiro (terminal, web, WhatsApp, bateria) lê esse arquivo ao iniciar, e uma variável de ambiente definida na hora tem prioridade sobre ele. Trocar de IA não apaga a chave de outro provedor já salva.
 
 ## Provedor do LLM: local ou API
 

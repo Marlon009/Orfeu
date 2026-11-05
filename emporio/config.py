@@ -8,6 +8,15 @@ RAW_DIR = ROOT / "data" / "raw"
 POLICIES_DIR = ROOT / "data" / "policies"
 DB_PATH = Path(os.getenv("EMPORIO_DB", ROOT / "data" / "emporio.db"))
 
+# Configuração gravada pelo dono (`python -m emporio.setup`). Variáveis de ambiente
+# definidas na hora têm prioridade sobre o arquivo.
+SETTINGS_FILE = Path(os.getenv("EMPORIO_SETTINGS", ROOT / "data" / "orfeu.env"))
+if SETTINGS_FILE.exists():
+    for _line in SETTINGS_FILE.read_text(encoding="utf-8").splitlines():
+        if "=" in _line and not _line.lstrip().startswith("#"):
+            _key, _value = _line.split("=", 1)
+            os.environ.setdefault(_key.strip(), _value.strip())
+
 # Provedor do LLM: local (Ollama) ou API (OpenAI, Gemini, Anthropic). Cada um traz seus
 # padrões; LLM_BASE_URL, LLM_MODEL e LLM_API_KEY, se definidos, têm prioridade.
 # `python -m emporio.providers` diz o que falta para o provedor escolhido.
